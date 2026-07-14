@@ -24,6 +24,7 @@
   overflow: hidden;
   padding: 14px;
   position: relative;
+  min-width: 0;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -58,6 +59,7 @@
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   display: flex;
   gap: 12px;
+  min-width: 0;
   padding: 12px;
 }
 
@@ -104,6 +106,8 @@
   font-weight: 680;
   line-height: 1.15;
   margin: 0;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .pca-title-wrap p {
@@ -111,6 +115,8 @@
   font-size: 12px;
   line-height: 1.35;
   margin: 4px 0 0;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .pca-toolbar,
@@ -122,6 +128,7 @@
 
 .pca-toolbar {
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .pca-toolbar button,
@@ -133,7 +140,11 @@
   color: var(--pca-text);
   font-size: 12px;
   min-height: 30px;
+  max-width: 100%;
+  overflow: hidden;
   padding: 5px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pca-toolbar button:hover,
@@ -153,6 +164,7 @@
   border: 1px solid rgba(247, 197, 107, 0.18);
   border-radius: 8px;
   padding: 8px 10px;
+  min-width: 0;
 }
 
 .pca-token-usage {
@@ -163,6 +175,7 @@
   display: flex;
   gap: 8px;
   min-height: 30px;
+  min-width: 0;
   padding: 7px 10px;
 }
 
@@ -177,6 +190,10 @@
   color: var(--pca-muted);
   font-size: 12px;
   line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pca-messages {
@@ -205,6 +222,7 @@
   user-select: text;
   -webkit-user-select: text;
   white-space: pre-wrap;
+  min-width: 0;
 }
 
 .pca-message:last-child {
@@ -249,6 +267,26 @@
   color: var(--pca-text);
   font-size: 13px;
   line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pca-message-body p,
+.pca-message-body ul,
+.pca-message-body ol {
+  margin-block-start: 0.45em;
+  margin-block-end: 0.45em;
+}
+
+.pca-message-body strong {
+  color: #ffe0a6;
+}
+
+.pca-message-body code {
+  background: rgba(11, 7, 5, 0.58);
+  border: 1px solid rgba(244, 190, 136, 0.16);
+  border-radius: 5px;
+  color: var(--pca-text);
+  padding: 1px 4px;
 }
 
 .pca-messages,
@@ -263,6 +301,7 @@
   border: 1px solid rgba(247, 197, 107, 0.2);
   border-radius: 8px;
   padding: 8px;
+  min-width: 0;
 }
 
 .pca-compose textarea {
@@ -273,6 +312,7 @@
   flex: 1;
   line-height: 1.45;
   min-height: 72px;
+  min-width: 0;
   outline: none;
   resize: vertical;
 }
@@ -317,6 +357,90 @@
   grid-template-columns: minmax(86px, auto) 1fr auto;
   margin-top: 10px;
   padding: 8px;
+}
+
+@media (max-width: 280px) {
+  .personal-codex-assistant {
+    padding: 10px;
+  }
+
+  .pca-header {
+    align-items: flex-start;
+  }
+
+  .pca-orbit-mark {
+    display: none;
+  }
+
+  .pca-install-block {
+    grid-template-columns: 1fr;
+  }
+
+  .pca-compose {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.pca-thinking {
+  align-items: center;
+  background: rgba(58, 38, 25, 0.74);
+  border: 1px solid rgba(247, 197, 107, 0.22);
+  border-radius: 8px;
+  color: var(--pca-muted);
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.pca-spinner {
+  animation: pca-spin 0.9s linear infinite;
+  border: 2px solid rgba(247, 197, 107, 0.18);
+  border-top-color: var(--pca-blue);
+  border-radius: 50%;
+  height: 16px;
+  width: 16px;
+}
+
+@keyframes pca-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pca-note-modal .modal-content {
+  min-width: 0;
+}
+
+.pca-note-search {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.pca-note-list {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 6px;
+}
+
+.pca-note-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+}
+
+.pca-note-row span {
+  overflow-wrap: anywhere;
+}
+
+.pca-note-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .pca-install-title {

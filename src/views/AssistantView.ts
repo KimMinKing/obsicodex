@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from "obsidian";
+import { ItemView, MarkdownRenderer, Modal, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import { CodexAuth } from "../codex/CodexAuth";
 import { CodexClient } from "../codex/CodexClient";
 import { CodexEvent } from "../codex/CodexTypes";
@@ -12,9 +12,9 @@ type MessageRole = "나" | "Codex" | "시스템";
 export class AssistantView extends ItemView {
   private messagesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
-  private statusEl!: HTMLElement;
-  private tokenUsageEl: HTMLElement | null = null;
   private rootEl!: HTMLElement;
+  private tokenUsageEl: HTMLElement | null = null;
+  private thinkingEl: HTMLElement | null = null;
   private lastAssistantText = "";
 
   constructor(
@@ -94,12 +94,12 @@ export class AssistantView extends ItemView {
     }
 
     const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
-    this.createToolbarButton(toolbar, "설치 확인", () => this.render());
+    this.createToolbarButton(toolbar, "설치 확인", () => this.verifyInstallation());
     this.createToolbarButton(toolbar, "공식 설치 문서 열기", () => {
       this.openExternalUrl("https://developers.openai.com/codex/cli");
     });
 
-    this.statusEl = this.rootEl.createEl("div", {
+    this.rootEl.createEl("div", {
       cls: "pca-status",
       text: "Codex CLI 설치 대기 중",
     });
@@ -132,7 +132,7 @@ export class AssistantView extends ItemView {
 
     this.createToolbarButton(toolbar, "상태 다시 확인", () => this.render());
 
-    this.statusEl = this.rootEl.createEl("div", {
+    this.rootEl.createEl("div", {
       cls: "pca-status",
       text: "로그인 대기 중",
     });
@@ -150,6 +150,7 @@ export class AssistantView extends ItemView {
     this.createToolbarButton(toolbar, "현재 노트 요약", () => {
       this.sendWithContext("현재 노트를 간결하게 요약해줘.", false, false);
     });
+    this.createToolbarButton(toolbar, "여러 노트 요약", () => this.openMultiNoteModal());
     this.createToolbarButton(toolbar, "오늘 정리", () => {
       this.sendWithContext("오늘 기록을 바탕으로 해야 할 일, 일정, 우선순위를 정리해줘.", false, true);
     });
@@ -165,8 +166,7 @@ export class AssistantView extends ItemView {
     });
 
     this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
-    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "토큰" });
-    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text: "사용량 대기 중" });
+    this.setTokenUsageText("토큰 사용량 대기 중");
 
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("시스템", "Codex 연결 전입니다. 질문을 보내면 app-server 실행을 시도합니다.");
@@ -178,11 +178,6 @@ export class AssistantView extends ItemView {
 
     const sendButton = compose.createEl("button", { text: "전송" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
-
-    this.statusEl = this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "대기 중",
-    });
   }
 
   private createToolbarButton(parent: HTMLElement, text: string, onClick: () => void): void {
@@ -190,34 +185,46 @@ export class AssistantView extends ItemView {
     button.onclick = onClick;
   }
 
+  private async verifyInstallation(): Promise<void> {
+    const status = await this.auth.checkStatus();
+    if (status.available) {
+      new Notice("Codex CLI를 찾았습니다.");
+      await this.render();
+      return;
+    }
+
+    new Notice("아직 Codex CLI를 찾지 못했습니다. 설치 후 Obsidian을 다시 시작해보세요.");
+    this.rootEl.empty();
+    this.renderMissingCli(status.output || "Codex CLI가 아직 감지되지 않았습니다. 설치 명령을 실행한 뒤 Obsidian을 다시 시작해보세요.");
+  }
+
   private async startLogin(button: HTMLButtonElement): Promise<void> {
     button.disabled = true;
-    this.statusEl.setText("브라우저 로그인 시작 중...");
+    new Notice("브라우저 로그인 시작 중...");
 
     const code = await this.auth.login((message) => {
       if (message) {
-        this.statusEl.setText(message);
+        new Notice(message);
       }
     });
 
     if (code === 0) {
-      this.statusEl.setText("로그인 완료. 화면을 전환합니다.");
+      new Notice("로그인 완료");
       await this.render();
       return;
     }
 
     button.disabled = false;
-    this.statusEl.setText("로그인이 완료되지 않았습니다. 브라우저 창이 열렸는지 확인한 뒤 상태를 다시 확인하세요.");
+    new Notice("로그인이 완료되지 않았습니다. 브라우저 창이 열렸는지 확인하세요.");
   }
 
   private async relogin(): Promise<void> {
     this.codex.stop();
     this.addMessage("시스템", "저장된 Codex 로그인 정보를 지우고 다시 로그인합니다.");
-    this.statusEl.setText("Codex 로그아웃 중...");
 
     await this.auth.logout((message) => {
       if (message) {
-        this.statusEl.setText(message);
+        new Notice(message);
       }
     });
 
@@ -233,22 +240,48 @@ export class AssistantView extends ItemView {
 
     this.inputEl.value = "";
     this.addMessage("나", trimmed);
-    this.statusEl.setText("문맥 수집 중...");
+    this.showThinking();
 
     const prompt = await this.vaultContext.buildContextualPrompt(trimmed, selectionOnly, dailyReview);
     if (!prompt) {
-      this.statusEl.setText("열려 있는 노트 없음");
+      this.hideThinking();
       return;
     }
 
     try {
-      this.statusEl.setText("Codex에 전송 중...");
       this.codex.sendPrompt(prompt);
     } catch (error) {
+      this.hideThinking();
       const message = error instanceof Error ? error.message : String(error);
       this.addMessage("시스템", message);
-      this.statusEl.setText("전송 실패");
     }
+  }
+
+  private async sendPrompt(prompt: string, label: string): Promise<void> {
+    this.addMessage("나", label);
+    this.showThinking();
+
+    try {
+      this.codex.sendPrompt(prompt);
+    } catch (error) {
+      this.hideThinking();
+      const message = error instanceof Error ? error.message : String(error);
+      this.addMessage("시스템", message);
+    }
+  }
+
+  private openMultiNoteModal(): void {
+    new MultiNoteSummaryModal(this, this.vaultContext).open();
+  }
+
+  async summarizeFiles(files: TFile[]): Promise<void> {
+    if (files.length === 0) {
+      new Notice("요약할 노트를 선택하세요.");
+      return;
+    }
+
+    const prompt = await this.vaultContext.buildMultiNoteSummaryPrompt(files);
+    await this.sendPrompt(prompt, `${files.length}개 노트 요약`);
   }
 
   private handleCodexEvent(event: CodexEvent): void {
@@ -260,43 +293,39 @@ export class AssistantView extends ItemView {
       }
 
       const text = this.extractText(event.payload);
+      this.hideThinking();
       if (this.isUnauthorizedPayload(event.payload)) {
         this.addMessage("시스템", text);
-        this.statusEl.setText("다시 로그인이 필요합니다.");
         this.codex.stop();
         return;
       }
 
       this.lastAssistantText = text;
       this.addMessage("Codex", text);
-      this.statusEl.setText("응답 수신");
       return;
     }
 
     if (event.type === "stderr") {
       const text = String(event.payload);
       if (/access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(text)) {
+        this.hideThinking();
         this.addMessage("시스템", "Codex 로그인 토큰을 갱신하지 못했습니다. 상단의 '다시 로그인'을 눌러 다시 로그인하세요.");
-        this.statusEl.setText("다시 로그인이 필요합니다.");
         this.codex.stop();
         return;
       }
 
-      this.addMessage("시스템", text);
-      this.statusEl.setText("Codex 로그 수신");
       return;
     }
 
     if (event.type === "error") {
+      this.hideThinking();
       const error = event.payload instanceof Error ? event.payload.message : String(event.payload);
       this.addMessage("시스템", `Codex 실행 오류: ${error}`);
-      this.statusEl.setText("Codex 실행 실패");
       return;
     }
 
     if (event.type === "exit") {
-      this.addMessage("시스템", `Codex app-server 종료: ${event.payload ?? "unknown"}`);
-      this.statusEl.setText("Codex 종료");
+      this.hideThinking();
     }
   }
 
@@ -329,8 +358,7 @@ export class AssistantView extends ItemView {
       return typeof payload === "string" && payload.trim().length > 0;
     }
 
-    const record = payload as Record<string, unknown>;
-    const method = record.method;
+    const method = (payload as Record<string, unknown>).method;
     if (typeof method !== "string") {
       return false;
     }
@@ -339,12 +367,8 @@ export class AssistantView extends ItemView {
       return true;
     }
 
-    if (method === "item/completed" || method === "rawResponseItem/completed") {
-      return this.extractNotificationText(record) !== null;
-    }
-
-    if (method === "turn/completed") {
-      return this.extractNotificationText(record) !== null;
+    if (method === "item/completed" || method === "rawResponseItem/completed" || method === "turn/completed") {
+      return this.extractNotificationText(payload as Record<string, unknown>) !== null;
     }
 
     return false;
@@ -387,8 +411,6 @@ export class AssistantView extends ItemView {
           return "Codex 요청이 실패했습니다.";
         }
       }
-
-      return null;
     }
 
     if ((method === "error" || method === "warning" || method === "guardianWarning") && typeof paramsRecord.message === "string") {
@@ -403,8 +425,7 @@ export class AssistantView extends ItemView {
       return null;
     }
 
-    const itemRecord = item as Record<string, unknown>;
-    const content = itemRecord.content;
+    const content = (item as Record<string, unknown>).content;
     if (!Array.isArray(content)) {
       return null;
     }
@@ -424,11 +445,20 @@ export class AssistantView extends ItemView {
   }
 
   private isUnauthorizedPayload(payload: unknown): boolean {
-    if (!payload || typeof payload !== "object") {
-      return false;
-    }
+    return !!payload && typeof payload === "object" && /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+  }
 
-    return /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+  private showThinking(): void {
+    this.hideThinking();
+    this.thinkingEl = this.messagesEl.createDiv({ cls: "pca-thinking" });
+    this.thinkingEl.createDiv({ cls: "pca-spinner" });
+    this.thinkingEl.createEl("span", { text: "생각 중..." });
+    this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
+  }
+
+  private hideThinking(): void {
+    this.thinkingEl?.remove();
+    this.thinkingEl = null;
   }
 
   private updateTokenUsage(payload: unknown): void {
@@ -442,40 +472,41 @@ export class AssistantView extends ItemView {
     }
 
     const params = record.params;
-    if (!params || typeof params !== "object") {
-      return;
-    }
-
-    const tokenUsage = (params as Record<string, unknown>).tokenUsage;
+    const tokenUsage = params && typeof params === "object" ? (params as Record<string, unknown>).tokenUsage : null;
     if (!tokenUsage || typeof tokenUsage !== "object") {
       return;
     }
 
     const usageRecord = tokenUsage as Record<string, unknown>;
-    const total = this.readTokenBreakdown(usageRecord.total);
-    const last = this.readTokenBreakdown(usageRecord.last);
+    const total = this.readTotalTokens(usageRecord.total);
+    const last = this.readTotalTokens(usageRecord.last);
     const contextWindow = typeof usageRecord.modelContextWindow === "number" ? usageRecord.modelContextWindow : null;
-    const remaining = contextWindow !== null ? Math.max(contextWindow - total.totalTokens, 0) : null;
+    const remaining = contextWindow !== null ? Math.max(contextWindow - total, 0) : null;
+
+    this.setTokenUsageText([
+      `총 ${this.formatNumber(total)}`,
+      `이번 ${this.formatNumber(last)}`,
+      remaining === null ? "남은 컨텍스트 알 수 없음" : `남은 ${this.formatNumber(remaining)}`,
+    ].join(" · "));
+  }
+
+  private setTokenUsageText(text: string): void {
+    if (!this.tokenUsageEl) {
+      return;
+    }
 
     this.tokenUsageEl.empty();
     this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "토큰" });
-    this.tokenUsageEl.createEl("span", {
-      cls: "pca-token-value",
-      text: [
-        `총 ${this.formatNumber(total.totalTokens)}`,
-        `이번 ${this.formatNumber(last.totalTokens)}`,
-        remaining === null ? "남은 컨텍스트 알 수 없음" : `남은 컨텍스트 ${this.formatNumber(remaining)}`,
-      ].join(" · "),
-    });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text });
   }
 
-  private readTokenBreakdown(value: unknown): { totalTokens: number } {
+  private readTotalTokens(value: unknown): number {
     if (!value || typeof value !== "object") {
-      return { totalTokens: 0 };
+      return 0;
     }
 
     const totalTokens = (value as Record<string, unknown>).totalTokens;
-    return { totalTokens: typeof totalTokens === "number" ? totalTokens : 0 };
+    return typeof totalTokens === "number" ? totalTokens : 0;
   }
 
   private formatNumber(value: number): string {
@@ -485,7 +516,12 @@ export class AssistantView extends ItemView {
   private addMessage(role: MessageRole, text: string): void {
     const message = this.messagesEl.createDiv({ cls: `pca-message pca-message-${this.roleClass(role)}` });
     message.createEl("strong", { cls: "pca-role", text: role });
-    message.createEl("div", { cls: "pca-message-body", text });
+    const body = message.createDiv({ cls: "pca-message-body" });
+    if (role === "Codex") {
+      MarkdownRenderer.render(this.app, text, body, "", this);
+    } else {
+      body.setText(text);
+    }
     this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
   }
 
@@ -529,6 +565,66 @@ export class AssistantView extends ItemView {
       electron.shell?.openExternal(url);
     } catch {
       new Notice(url);
+    }
+  }
+}
+
+class MultiNoteSummaryModal extends Modal {
+  private selected = new Set<string>();
+  private listEl!: HTMLElement;
+  private query = "";
+
+  constructor(
+    private readonly assistantView: AssistantView,
+    private readonly vaultContext: VaultContext,
+  ) {
+    super(assistantView.app);
+  }
+
+  onOpen(): void {
+    this.titleEl.setText("여러 노트 요약");
+    this.contentEl.addClass("pca-note-modal");
+
+    const input = this.contentEl.createEl("input", {
+      cls: "pca-note-search",
+      placeholder: "노트 이름으로 검색",
+    });
+    input.oninput = () => {
+      this.query = input.value.toLowerCase();
+      this.renderList();
+    };
+
+    this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
+    this.renderList();
+
+    const footer = this.contentEl.createDiv({ cls: "pca-note-modal-footer" });
+    const summarize = footer.createEl("button", { text: "선택한 노트 요약" });
+    summarize.onclick = async () => {
+      const files = this.vaultContext.getMarkdownFiles().filter((file) => this.selected.has(file.path));
+      this.close();
+      await this.assistantView.summarizeFiles(files);
+    };
+  }
+
+  private renderList(): void {
+    this.listEl.empty();
+    const files = this.vaultContext
+      .getMarkdownFiles()
+      .filter((file) => file.path.toLowerCase().includes(this.query))
+      .slice(0, 80);
+
+    for (const file of files) {
+      const row = this.listEl.createEl("label", { cls: "pca-note-row" });
+      const checkbox = row.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selected.has(file.path);
+      checkbox.onchange = () => {
+        if (checkbox.checked) {
+          this.selected.add(file.path);
+        } else {
+          this.selected.delete(file.path);
+        }
+      };
+      row.createEl("span", { text: file.path });
     }
   }
 }

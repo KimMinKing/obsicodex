@@ -34,6 +34,10 @@ export class VaultContext {
     return { file, content, selection };
   }
 
+  getMarkdownFiles(): TFile[] {
+    return this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
+  }
+
   getSelection(): string {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     return view?.editor.getSelection() ?? "";
@@ -44,17 +48,7 @@ export class VaultContext {
     await this.ensureFolder(this.settings.dailyReviewFolder);
 
     const files = [
-      [
-        "Profile.md",
-        [
-          "# Profile",
-          "",
-          "- 이름:",
-          "- 현재 집중하는 일:",
-          "- 중요하게 여기는 것:",
-          "",
-        ].join("\n"),
-      ],
+      ["Profile.md", "# Profile\n\n- 이름:\n- 현재 집중하는 일:\n- 중요하게 여기는 것:\n"],
       [
         "Preferences.md",
         [
@@ -103,55 +97,6 @@ export class VaultContext {
     return path;
   }
 
-  buildPrompt(userInput: string, mode: "active" | "selection" | "daily-review"): string {
-    const base = [
-      "너는 Obsidian 안에서 동작하는 개인 비서다.",
-      "사용자의 노트, 목표, 선호를 바탕으로 답한다.",
-      "말투는 인간적인 개인 비서에 가깝게 하되, 과장된 감정 표현이나 의미 없는 칭찬은 피한다.",
-      "사용자가 쓴 표현, 반복되는 관심사, 미뤄진 일, 현재 에너지를 추론해서 반영한다.",
-      "답변은 구체적이고 바로 실행 가능해야 한다.",
-      "파일을 직접 수정하지 말고 제안만 한다.",
-    ];
-
-    if (mode === "daily-review") {
-      return [
-        ...base,
-        "",
-        "현재 노트에 적힌 일기, TODO, 공부 기록을 읽고 다음 형식으로 정리해라.",
-        "단순 요약보다 사용자가 실제로 오늘 무엇을 하면 좋을지 판단해라.",
-        "",
-        "## 오늘 요약",
-        "## 지금 신경 써야 할 것",
-        "## 해야 할 일",
-        "## 일정",
-        "## 우선순위",
-        "## 내일로 넘길 일",
-        "",
-        "사용자 요청:",
-        userInput,
-      ].join("\n");
-    }
-
-    if (mode === "selection") {
-      return [
-        ...base,
-        "",
-        "선택 영역을 사용자의 기존 문체와 의도를 살려 다듬어라.",
-        "원문을 대신 써주기 전에, 어떤 방향으로 고쳤는지 짧게 말해라.",
-        "",
-        "사용자 요청:",
-        userInput,
-      ].join("\n");
-    }
-
-    return [
-      ...base,
-      "",
-      "사용자 요청:",
-      userInput,
-    ].join("\n");
-  }
-
   async buildContextualPrompt(userInput: string, includeSelectionOnly: boolean, dailyReview: boolean): Promise<string | null> {
     const active = await this.getActiveNote();
     if (!active) {
@@ -176,9 +121,94 @@ export class VaultContext {
       "이 노트의 문장과 단어 선택을 사용자의 현재 말투 샘플로 참고해라.",
       "",
       "```markdown",
-      source,
+      this.truncate(source, useSelection ? 8000 : 12000),
       "```",
     ].join("\n");
+  }
+
+  async buildMultiNoteSummaryPrompt(files: TFile[]): Promise<string> {
+    const memory = await this.readAssistantMemory();
+    const noteBlocks: string[] = [];
+
+    for (const file of files.slice(0, 12)) {
+      const content = await this.app.vault.read(file);
+      noteBlocks.push([
+        `## ${file.path}`,
+        "```markdown",
+        this.truncate(content, 5000),
+        "```",
+      ].join("\n"));
+    }
+
+    return [
+      ...this.basePrompt(),
+      "",
+      "사용자가 선택한 여러 노트를 함께 읽고 종합 요약해라.",
+      "중복되는 내용은 합치고, 파일별 핵심과 전체 흐름을 구분해라.",
+      "답변은 다음 형식을 따른다.",
+      "",
+      "## 전체 요약",
+      "## 파일별 핵심",
+      "## 연결되는 주제",
+      "## 다음 행동",
+      "",
+      "개인 문맥:",
+      this.formatMemory(memory),
+      "",
+      "선택된 노트:",
+      noteBlocks.join("\n\n"),
+    ].join("\n");
+  }
+
+  private buildPrompt(userInput: string, mode: "active" | "selection" | "daily-review"): string {
+    if (mode === "daily-review") {
+      return [
+        ...this.basePrompt(),
+        "",
+        "현재 노트에 적힌 일기, TODO, 공부 기록을 읽고 정리해라.",
+        "단순 요약보다 사용자가 실제로 오늘 무엇을 하면 좋을지 판단해라.",
+        "",
+        "## 오늘 요약",
+        "## 지금 신경 써야 할 것",
+        "## 해야 할 일",
+        "## 일정",
+        "## 우선순위",
+        "## 내일로 넘길 일",
+        "",
+        "사용자 요청:",
+        userInput,
+      ].join("\n");
+    }
+
+    if (mode === "selection") {
+      return [
+        ...this.basePrompt(),
+        "",
+        "선택 영역을 사용자의 기존 문체와 의도를 살려 다듬어라.",
+        "원문을 대신 써주기 전에, 어떤 방향으로 고쳤는지 짧게 말해라.",
+        "",
+        "사용자 요청:",
+        userInput,
+      ].join("\n");
+    }
+
+    return [
+      ...this.basePrompt(),
+      "",
+      "사용자 요청:",
+      userInput,
+    ].join("\n");
+  }
+
+  private basePrompt(): string[] {
+    return [
+      "너는 Obsidian 안에서 동작하는 개인 비서다.",
+      "사용자의 노트, 목표, 선호를 바탕으로 답한다.",
+      "말투는 인간적인 개인 비서에 가깝게 하되, 과장된 감정 표현이나 의미 없는 칭찬은 피한다.",
+      "사용자가 쓴 표현, 반복되는 관심사, 미뤄진 일, 현재 에너지를 추론해서 반영한다.",
+      "답변은 구체적이고 바로 실행 가능해야 한다.",
+      "파일을 직접 수정하지 말고 제안만 한다.",
+    ];
   }
 
   private async readAssistantMemory(): Promise<AssistantMemory> {
@@ -197,7 +227,7 @@ export class VaultContext {
       return "";
     }
 
-    return this.truncate(await this.app.vault.read(file), 3000);
+    return this.truncate(await this.app.vault.read(file), 1200);
   }
 
   private formatMemory(memory: AssistantMemory): string {

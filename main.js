@@ -418,6 +418,9 @@ var VaultContext = class {
     const selection = this.getSelection();
     return { file, content, selection };
   }
+  getMarkdownFiles() {
+    return this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
+  }
   getSelection() {
     const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
     return view?.editor.getSelection() ?? "";
@@ -426,17 +429,7 @@ var VaultContext = class {
     await this.ensureFolder(this.settings.assistantFolder);
     await this.ensureFolder(this.settings.dailyReviewFolder);
     const files = [
-      [
-        "Profile.md",
-        [
-          "# Profile",
-          "",
-          "- \uC774\uB984:",
-          "- \uD604\uC7AC \uC9D1\uC911\uD558\uB294 \uC77C:",
-          "- \uC911\uC694\uD558\uAC8C \uC5EC\uAE30\uB294 \uAC83:",
-          ""
-        ].join("\n")
-      ],
+      ["Profile.md", "# Profile\n\n- \uC774\uB984:\n- \uD604\uC7AC \uC9D1\uC911\uD558\uB294 \uC77C:\n- \uC911\uC694\uD558\uAC8C \uC5EC\uAE30\uB294 \uAC83:\n"],
       [
         "Preferences.md",
         [
@@ -479,51 +472,6 @@ var VaultContext = class {
     }
     return path;
   }
-  buildPrompt(userInput, mode) {
-    const base = [
-      "\uB108\uB294 Obsidian \uC548\uC5D0\uC11C \uB3D9\uC791\uD558\uB294 \uAC1C\uC778 \uBE44\uC11C\uB2E4.",
-      "\uC0AC\uC6A9\uC790\uC758 \uB178\uD2B8, \uBAA9\uD45C, \uC120\uD638\uB97C \uBC14\uD0D5\uC73C\uB85C \uB2F5\uD55C\uB2E4.",
-      "\uB9D0\uD22C\uB294 \uC778\uAC04\uC801\uC778 \uAC1C\uC778 \uBE44\uC11C\uC5D0 \uAC00\uAE5D\uAC8C \uD558\uB418, \uACFC\uC7A5\uB41C \uAC10\uC815 \uD45C\uD604\uC774\uB098 \uC758\uBBF8 \uC5C6\uB294 \uCE6D\uCC2C\uC740 \uD53C\uD55C\uB2E4.",
-      "\uC0AC\uC6A9\uC790\uAC00 \uC4F4 \uD45C\uD604, \uBC18\uBCF5\uB418\uB294 \uAD00\uC2EC\uC0AC, \uBBF8\uB904\uC9C4 \uC77C, \uD604\uC7AC \uC5D0\uB108\uC9C0\uB97C \uCD94\uB860\uD574\uC11C \uBC18\uC601\uD55C\uB2E4.",
-      "\uB2F5\uBCC0\uC740 \uAD6C\uCCB4\uC801\uC774\uACE0 \uBC14\uB85C \uC2E4\uD589 \uAC00\uB2A5\uD574\uC57C \uD55C\uB2E4.",
-      "\uD30C\uC77C\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uB9CC \uD55C\uB2E4."
-    ];
-    if (mode === "daily-review") {
-      return [
-        ...base,
-        "",
-        "\uD604\uC7AC \uB178\uD2B8\uC5D0 \uC801\uD78C \uC77C\uAE30, TODO, \uACF5\uBD80 \uAE30\uB85D\uC744 \uC77D\uACE0 \uB2E4\uC74C \uD615\uC2DD\uC73C\uB85C \uC815\uB9AC\uD574\uB77C.",
-        "\uB2E8\uC21C \uC694\uC57D\uBCF4\uB2E4 \uC0AC\uC6A9\uC790\uAC00 \uC2E4\uC81C\uB85C \uC624\uB298 \uBB34\uC5C7\uC744 \uD558\uBA74 \uC88B\uC744\uC9C0 \uD310\uB2E8\uD574\uB77C.",
-        "",
-        "## \uC624\uB298 \uC694\uC57D",
-        "## \uC9C0\uAE08 \uC2E0\uACBD \uC368\uC57C \uD560 \uAC83",
-        "## \uD574\uC57C \uD560 \uC77C",
-        "## \uC77C\uC815",
-        "## \uC6B0\uC120\uC21C\uC704",
-        "## \uB0B4\uC77C\uB85C \uB118\uAE38 \uC77C",
-        "",
-        "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
-        userInput
-      ].join("\n");
-    }
-    if (mode === "selection") {
-      return [
-        ...base,
-        "",
-        "\uC120\uD0DD \uC601\uC5ED\uC744 \uC0AC\uC6A9\uC790\uC758 \uAE30\uC874 \uBB38\uCCB4\uC640 \uC758\uB3C4\uB97C \uC0B4\uB824 \uB2E4\uB4EC\uC5B4\uB77C.",
-        "\uC6D0\uBB38\uC744 \uB300\uC2E0 \uC368\uC8FC\uAE30 \uC804\uC5D0, \uC5B4\uB5A4 \uBC29\uD5A5\uC73C\uB85C \uACE0\uCCE4\uB294\uC9C0 \uC9E7\uAC8C \uB9D0\uD574\uB77C.",
-        "",
-        "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
-        userInput
-      ].join("\n");
-    }
-    return [
-      ...base,
-      "",
-      "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
-      userInput
-    ].join("\n");
-  }
   async buildContextualPrompt(userInput, includeSelectionOnly, dailyReview) {
     const active = await this.getActiveNote();
     if (!active) {
@@ -546,9 +494,87 @@ var VaultContext = class {
       "\uC774 \uB178\uD2B8\uC758 \uBB38\uC7A5\uACFC \uB2E8\uC5B4 \uC120\uD0DD\uC744 \uC0AC\uC6A9\uC790\uC758 \uD604\uC7AC \uB9D0\uD22C \uC0D8\uD50C\uB85C \uCC38\uACE0\uD574\uB77C.",
       "",
       "```markdown",
-      source,
+      this.truncate(source, useSelection ? 8e3 : 12e3),
       "```"
     ].join("\n");
+  }
+  async buildMultiNoteSummaryPrompt(files) {
+    const memory = await this.readAssistantMemory();
+    const noteBlocks = [];
+    for (const file of files.slice(0, 12)) {
+      const content = await this.app.vault.read(file);
+      noteBlocks.push([
+        `## ${file.path}`,
+        "```markdown",
+        this.truncate(content, 5e3),
+        "```"
+      ].join("\n"));
+    }
+    return [
+      ...this.basePrompt(),
+      "",
+      "\uC0AC\uC6A9\uC790\uAC00 \uC120\uD0DD\uD55C \uC5EC\uB7EC \uB178\uD2B8\uB97C \uD568\uAED8 \uC77D\uACE0 \uC885\uD569 \uC694\uC57D\uD574\uB77C.",
+      "\uC911\uBCF5\uB418\uB294 \uB0B4\uC6A9\uC740 \uD569\uCE58\uACE0, \uD30C\uC77C\uBCC4 \uD575\uC2EC\uACFC \uC804\uCCB4 \uD750\uB984\uC744 \uAD6C\uBD84\uD574\uB77C.",
+      "\uB2F5\uBCC0\uC740 \uB2E4\uC74C \uD615\uC2DD\uC744 \uB530\uB978\uB2E4.",
+      "",
+      "## \uC804\uCCB4 \uC694\uC57D",
+      "## \uD30C\uC77C\uBCC4 \uD575\uC2EC",
+      "## \uC5F0\uACB0\uB418\uB294 \uC8FC\uC81C",
+      "## \uB2E4\uC74C \uD589\uB3D9",
+      "",
+      "\uAC1C\uC778 \uBB38\uB9E5:",
+      this.formatMemory(memory),
+      "",
+      "\uC120\uD0DD\uB41C \uB178\uD2B8:",
+      noteBlocks.join("\n\n")
+    ].join("\n");
+  }
+  buildPrompt(userInput, mode) {
+    if (mode === "daily-review") {
+      return [
+        ...this.basePrompt(),
+        "",
+        "\uD604\uC7AC \uB178\uD2B8\uC5D0 \uC801\uD78C \uC77C\uAE30, TODO, \uACF5\uBD80 \uAE30\uB85D\uC744 \uC77D\uACE0 \uC815\uB9AC\uD574\uB77C.",
+        "\uB2E8\uC21C \uC694\uC57D\uBCF4\uB2E4 \uC0AC\uC6A9\uC790\uAC00 \uC2E4\uC81C\uB85C \uC624\uB298 \uBB34\uC5C7\uC744 \uD558\uBA74 \uC88B\uC744\uC9C0 \uD310\uB2E8\uD574\uB77C.",
+        "",
+        "## \uC624\uB298 \uC694\uC57D",
+        "## \uC9C0\uAE08 \uC2E0\uACBD \uC368\uC57C \uD560 \uAC83",
+        "## \uD574\uC57C \uD560 \uC77C",
+        "## \uC77C\uC815",
+        "## \uC6B0\uC120\uC21C\uC704",
+        "## \uB0B4\uC77C\uB85C \uB118\uAE38 \uC77C",
+        "",
+        "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
+        userInput
+      ].join("\n");
+    }
+    if (mode === "selection") {
+      return [
+        ...this.basePrompt(),
+        "",
+        "\uC120\uD0DD \uC601\uC5ED\uC744 \uC0AC\uC6A9\uC790\uC758 \uAE30\uC874 \uBB38\uCCB4\uC640 \uC758\uB3C4\uB97C \uC0B4\uB824 \uB2E4\uB4EC\uC5B4\uB77C.",
+        "\uC6D0\uBB38\uC744 \uB300\uC2E0 \uC368\uC8FC\uAE30 \uC804\uC5D0, \uC5B4\uB5A4 \uBC29\uD5A5\uC73C\uB85C \uACE0\uCCE4\uB294\uC9C0 \uC9E7\uAC8C \uB9D0\uD574\uB77C.",
+        "",
+        "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
+        userInput
+      ].join("\n");
+    }
+    return [
+      ...this.basePrompt(),
+      "",
+      "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
+      userInput
+    ].join("\n");
+  }
+  basePrompt() {
+    return [
+      "\uB108\uB294 Obsidian \uC548\uC5D0\uC11C \uB3D9\uC791\uD558\uB294 \uAC1C\uC778 \uBE44\uC11C\uB2E4.",
+      "\uC0AC\uC6A9\uC790\uC758 \uB178\uD2B8, \uBAA9\uD45C, \uC120\uD638\uB97C \uBC14\uD0D5\uC73C\uB85C \uB2F5\uD55C\uB2E4.",
+      "\uB9D0\uD22C\uB294 \uC778\uAC04\uC801\uC778 \uAC1C\uC778 \uBE44\uC11C\uC5D0 \uAC00\uAE5D\uAC8C \uD558\uB418, \uACFC\uC7A5\uB41C \uAC10\uC815 \uD45C\uD604\uC774\uB098 \uC758\uBBF8 \uC5C6\uB294 \uCE6D\uCC2C\uC740 \uD53C\uD55C\uB2E4.",
+      "\uC0AC\uC6A9\uC790\uAC00 \uC4F4 \uD45C\uD604, \uBC18\uBCF5\uB418\uB294 \uAD00\uC2EC\uC0AC, \uBBF8\uB904\uC9C4 \uC77C, \uD604\uC7AC \uC5D0\uB108\uC9C0\uB97C \uCD94\uB860\uD574\uC11C \uBC18\uC601\uD55C\uB2E4.",
+      "\uB2F5\uBCC0\uC740 \uAD6C\uCCB4\uC801\uC774\uACE0 \uBC14\uB85C \uC2E4\uD589 \uAC00\uB2A5\uD574\uC57C \uD55C\uB2E4.",
+      "\uD30C\uC77C\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uB9CC \uD55C\uB2E4."
+    ];
   }
   async readAssistantMemory() {
     return {
@@ -564,7 +590,7 @@ var VaultContext = class {
     if (!(file instanceof import_obsidian.TFile)) {
       return "";
     }
-    return this.truncate(await this.app.vault.read(file), 3e3);
+    return this.truncate(await this.app.vault.read(file), 1200);
   }
   formatMemory(memory) {
     return [
@@ -634,9 +660,9 @@ var AssistantView = class extends import_obsidian2.ItemView {
   }
   messagesEl;
   inputEl;
-  statusEl;
-  tokenUsageEl = null;
   rootEl;
+  tokenUsageEl = null;
+  thinkingEl = null;
   lastAssistantText = "";
   getViewType() {
     return ASSISTANT_VIEW_TYPE;
@@ -690,11 +716,11 @@ var AssistantView = class extends import_obsidian2.ItemView {
       panel.createEl("pre", { text: output });
     }
     const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
-    this.createToolbarButton(toolbar, "\uC124\uCE58 \uD655\uC778", () => this.render());
+    this.createToolbarButton(toolbar, "\uC124\uCE58 \uD655\uC778", () => this.verifyInstallation());
     this.createToolbarButton(toolbar, "\uACF5\uC2DD \uC124\uCE58 \uBB38\uC11C \uC5F4\uAE30", () => {
       this.openExternalUrl("https://developers.openai.com/codex/cli");
     });
-    this.statusEl = this.rootEl.createEl("div", {
+    this.rootEl.createEl("div", {
       cls: "pca-status",
       text: "Codex CLI \uC124\uCE58 \uB300\uAE30 \uC911"
     });
@@ -720,7 +746,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
     const loginButton = toolbar.createEl("button", { text: "ChatGPT\uB85C \uB85C\uADF8\uC778" });
     loginButton.onclick = () => this.startLogin(loginButton);
     this.createToolbarButton(toolbar, "\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778", () => this.render());
-    this.statusEl = this.rootEl.createEl("div", {
+    this.rootEl.createEl("div", {
       cls: "pca-status",
       text: "\uB85C\uADF8\uC778 \uB300\uAE30 \uC911"
     });
@@ -736,6 +762,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.createToolbarButton(toolbar, "\uD604\uC7AC \uB178\uD2B8 \uC694\uC57D", () => {
       this.sendWithContext("\uD604\uC7AC \uB178\uD2B8\uB97C \uAC04\uACB0\uD558\uAC8C \uC694\uC57D\uD574\uC918.", false, false);
     });
+    this.createToolbarButton(toolbar, "\uC5EC\uB7EC \uB178\uD2B8 \uC694\uC57D", () => this.openMultiNoteModal());
     this.createToolbarButton(toolbar, "\uC624\uB298 \uC815\uB9AC", () => {
       this.sendWithContext("\uC624\uB298 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C \uD574\uC57C \uD560 \uC77C, \uC77C\uC815, \uC6B0\uC120\uC21C\uC704\uB97C \uC815\uB9AC\uD574\uC918.", false, true);
     });
@@ -749,8 +776,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
       text: this.approvals.explainReadOnlyMode()
     });
     this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
-    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "\uD1A0\uD070" });
-    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text: "\uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911" });
+    this.setTokenUsageText("\uD1A0\uD070 \uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911");
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uC5F0\uACB0 \uC804\uC785\uB2C8\uB2E4. \uC9C8\uBB38\uC744 \uBCF4\uB0B4\uBA74 app-server \uC2E4\uD589\uC744 \uC2DC\uB3C4\uD569\uB2C8\uB2E4.");
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
@@ -759,38 +785,44 @@ var AssistantView = class extends import_obsidian2.ItemView {
     });
     const sendButton = compose.createEl("button", { text: "\uC804\uC1A1" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
-    this.statusEl = this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "\uB300\uAE30 \uC911"
-    });
   }
   createToolbarButton(parent, text, onClick) {
     const button = parent.createEl("button", { text });
     button.onclick = onClick;
   }
+  async verifyInstallation() {
+    const status = await this.auth.checkStatus();
+    if (status.available) {
+      new import_obsidian2.Notice("Codex CLI\uB97C \uCC3E\uC558\uC2B5\uB2C8\uB2E4.");
+      await this.render();
+      return;
+    }
+    new import_obsidian2.Notice("\uC544\uC9C1 Codex CLI\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC124\uCE58 \uD6C4 Obsidian\uC744 \uB2E4\uC2DC \uC2DC\uC791\uD574\uBCF4\uC138\uC694.");
+    this.rootEl.empty();
+    this.renderMissingCli(status.output || "Codex CLI\uAC00 \uC544\uC9C1 \uAC10\uC9C0\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC124\uCE58 \uBA85\uB839\uC744 \uC2E4\uD589\uD55C \uB4A4 Obsidian\uC744 \uB2E4\uC2DC \uC2DC\uC791\uD574\uBCF4\uC138\uC694.");
+  }
   async startLogin(button) {
     button.disabled = true;
-    this.statusEl.setText("\uBE0C\uB77C\uC6B0\uC800 \uB85C\uADF8\uC778 \uC2DC\uC791 \uC911...");
+    new import_obsidian2.Notice("\uBE0C\uB77C\uC6B0\uC800 \uB85C\uADF8\uC778 \uC2DC\uC791 \uC911...");
     const code = await this.auth.login((message) => {
       if (message) {
-        this.statusEl.setText(message);
+        new import_obsidian2.Notice(message);
       }
     });
     if (code === 0) {
-      this.statusEl.setText("\uB85C\uADF8\uC778 \uC644\uB8CC. \uD654\uBA74\uC744 \uC804\uD658\uD569\uB2C8\uB2E4.");
+      new import_obsidian2.Notice("\uB85C\uADF8\uC778 \uC644\uB8CC");
       await this.render();
       return;
     }
     button.disabled = false;
-    this.statusEl.setText("\uB85C\uADF8\uC778\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uBE0C\uB77C\uC6B0\uC800 \uCC3D\uC774 \uC5F4\uB838\uB294\uC9C0 \uD655\uC778\uD55C \uB4A4 \uC0C1\uD0DC\uB97C \uB2E4\uC2DC \uD655\uC778\uD558\uC138\uC694.");
+    new import_obsidian2.Notice("\uB85C\uADF8\uC778\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uBE0C\uB77C\uC6B0\uC800 \uCC3D\uC774 \uC5F4\uB838\uB294\uC9C0 \uD655\uC778\uD558\uC138\uC694.");
   }
   async relogin() {
     this.codex.stop();
     this.addMessage("\uC2DC\uC2A4\uD15C", "\uC800\uC7A5\uB41C Codex \uB85C\uADF8\uC778 \uC815\uBCF4\uB97C \uC9C0\uC6B0\uACE0 \uB2E4\uC2DC \uB85C\uADF8\uC778\uD569\uB2C8\uB2E4.");
-    this.statusEl.setText("Codex \uB85C\uADF8\uC544\uC6C3 \uC911...");
     await this.auth.logout((message) => {
       if (message) {
-        this.statusEl.setText(message);
+        new import_obsidian2.Notice(message);
       }
     });
     this.rootEl.empty();
@@ -803,20 +835,41 @@ var AssistantView = class extends import_obsidian2.ItemView {
     }
     this.inputEl.value = "";
     this.addMessage("\uB098", trimmed);
-    this.statusEl.setText("\uBB38\uB9E5 \uC218\uC9D1 \uC911...");
+    this.showThinking();
     const prompt = await this.vaultContext.buildContextualPrompt(trimmed, selectionOnly, dailyReview);
     if (!prompt) {
-      this.statusEl.setText("\uC5F4\uB824 \uC788\uB294 \uB178\uD2B8 \uC5C6\uC74C");
+      this.hideThinking();
       return;
     }
     try {
-      this.statusEl.setText("Codex\uC5D0 \uC804\uC1A1 \uC911...");
       this.codex.sendPrompt(prompt);
     } catch (error) {
+      this.hideThinking();
       const message = error instanceof Error ? error.message : String(error);
       this.addMessage("\uC2DC\uC2A4\uD15C", message);
-      this.statusEl.setText("\uC804\uC1A1 \uC2E4\uD328");
     }
+  }
+  async sendPrompt(prompt, label) {
+    this.addMessage("\uB098", label);
+    this.showThinking();
+    try {
+      this.codex.sendPrompt(prompt);
+    } catch (error) {
+      this.hideThinking();
+      const message = error instanceof Error ? error.message : String(error);
+      this.addMessage("\uC2DC\uC2A4\uD15C", message);
+    }
+  }
+  openMultiNoteModal() {
+    new MultiNoteSummaryModal(this, this.vaultContext).open();
+  }
+  async summarizeFiles(files) {
+    if (files.length === 0) {
+      new import_obsidian2.Notice("\uC694\uC57D\uD560 \uB178\uD2B8\uB97C \uC120\uD0DD\uD558\uC138\uC694.");
+      return;
+    }
+    const prompt = await this.vaultContext.buildMultiNoteSummaryPrompt(files);
+    await this.sendPrompt(prompt, `${files.length}\uAC1C \uB178\uD2B8 \uC694\uC57D`);
   }
   handleCodexEvent(event) {
     if (event.type === "message") {
@@ -825,38 +878,34 @@ var AssistantView = class extends import_obsidian2.ItemView {
         return;
       }
       const text = this.extractText(event.payload);
+      this.hideThinking();
       if (this.isUnauthorizedPayload(event.payload)) {
         this.addMessage("\uC2DC\uC2A4\uD15C", text);
-        this.statusEl.setText("\uB2E4\uC2DC \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
         this.codex.stop();
         return;
       }
       this.lastAssistantText = text;
       this.addMessage("Codex", text);
-      this.statusEl.setText("\uC751\uB2F5 \uC218\uC2E0");
       return;
     }
     if (event.type === "stderr") {
       const text = String(event.payload);
       if (/access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(text)) {
+        this.hideThinking();
         this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uB85C\uADF8\uC778 \uD1A0\uD070\uC744 \uAC31\uC2E0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC0C1\uB2E8\uC758 '\uB2E4\uC2DC \uB85C\uADF8\uC778'\uC744 \uB20C\uB7EC \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.");
-        this.statusEl.setText("\uB2E4\uC2DC \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
         this.codex.stop();
         return;
       }
-      this.addMessage("\uC2DC\uC2A4\uD15C", text);
-      this.statusEl.setText("Codex \uB85C\uADF8 \uC218\uC2E0");
       return;
     }
     if (event.type === "error") {
+      this.hideThinking();
       const error = event.payload instanceof Error ? event.payload.message : String(event.payload);
       this.addMessage("\uC2DC\uC2A4\uD15C", `Codex \uC2E4\uD589 \uC624\uB958: ${error}`);
-      this.statusEl.setText("Codex \uC2E4\uD589 \uC2E4\uD328");
       return;
     }
     if (event.type === "exit") {
-      this.addMessage("\uC2DC\uC2A4\uD15C", `Codex app-server \uC885\uB8CC: ${event.payload ?? "unknown"}`);
-      this.statusEl.setText("Codex \uC885\uB8CC");
+      this.hideThinking();
     }
   }
   extractText(payload) {
@@ -882,19 +931,15 @@ var AssistantView = class extends import_obsidian2.ItemView {
     if (!payload || typeof payload !== "object") {
       return typeof payload === "string" && payload.trim().length > 0;
     }
-    const record = payload;
-    const method = record.method;
+    const method = payload.method;
     if (typeof method !== "string") {
       return false;
     }
     if (method === "error" || method === "warning" || method === "guardianWarning") {
       return true;
     }
-    if (method === "item/completed" || method === "rawResponseItem/completed") {
-      return this.extractNotificationText(record) !== null;
-    }
-    if (method === "turn/completed") {
-      return this.extractNotificationText(record) !== null;
+    if (method === "item/completed" || method === "rawResponseItem/completed" || method === "turn/completed") {
+      return this.extractNotificationText(payload) !== null;
     }
     return false;
   }
@@ -930,7 +975,6 @@ var AssistantView = class extends import_obsidian2.ItemView {
           return "Codex \uC694\uCCAD\uC774 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.";
         }
       }
-      return null;
     }
     if ((method === "error" || method === "warning" || method === "guardianWarning") && typeof paramsRecord.message === "string") {
       return paramsRecord.message;
@@ -941,8 +985,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
     if (!item || typeof item !== "object") {
       return null;
     }
-    const itemRecord = item;
-    const content = itemRecord.content;
+    const content = item.content;
     if (!Array.isArray(content)) {
       return null;
     }
@@ -956,10 +999,18 @@ var AssistantView = class extends import_obsidian2.ItemView {
     return parts.length > 0 ? parts.join("\n") : null;
   }
   isUnauthorizedPayload(payload) {
-    if (!payload || typeof payload !== "object") {
-      return false;
-    }
-    return /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+    return !!payload && typeof payload === "object" && /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+  }
+  showThinking() {
+    this.hideThinking();
+    this.thinkingEl = this.messagesEl.createDiv({ cls: "pca-thinking" });
+    this.thinkingEl.createDiv({ cls: "pca-spinner" });
+    this.thinkingEl.createEl("span", { text: "\uC0DD\uAC01 \uC911..." });
+    this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
+  }
+  hideThinking() {
+    this.thinkingEl?.remove();
+    this.thinkingEl = null;
   }
   updateTokenUsage(payload) {
     if (!this.tokenUsageEl || !payload || typeof payload !== "object") {
@@ -970,35 +1021,35 @@ var AssistantView = class extends import_obsidian2.ItemView {
       return;
     }
     const params = record.params;
-    if (!params || typeof params !== "object") {
-      return;
-    }
-    const tokenUsage = params.tokenUsage;
+    const tokenUsage = params && typeof params === "object" ? params.tokenUsage : null;
     if (!tokenUsage || typeof tokenUsage !== "object") {
       return;
     }
     const usageRecord = tokenUsage;
-    const total = this.readTokenBreakdown(usageRecord.total);
-    const last = this.readTokenBreakdown(usageRecord.last);
+    const total = this.readTotalTokens(usageRecord.total);
+    const last = this.readTotalTokens(usageRecord.last);
     const contextWindow = typeof usageRecord.modelContextWindow === "number" ? usageRecord.modelContextWindow : null;
-    const remaining = contextWindow !== null ? Math.max(contextWindow - total.totalTokens, 0) : null;
+    const remaining = contextWindow !== null ? Math.max(contextWindow - total, 0) : null;
+    this.setTokenUsageText([
+      `\uCD1D ${this.formatNumber(total)}`,
+      `\uC774\uBC88 ${this.formatNumber(last)}`,
+      remaining === null ? "\uB0A8\uC740 \uCEE8\uD14D\uC2A4\uD2B8 \uC54C \uC218 \uC5C6\uC74C" : `\uB0A8\uC740 ${this.formatNumber(remaining)}`
+    ].join(" \xB7 "));
+  }
+  setTokenUsageText(text) {
+    if (!this.tokenUsageEl) {
+      return;
+    }
     this.tokenUsageEl.empty();
     this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "\uD1A0\uD070" });
-    this.tokenUsageEl.createEl("span", {
-      cls: "pca-token-value",
-      text: [
-        `\uCD1D ${this.formatNumber(total.totalTokens)}`,
-        `\uC774\uBC88 ${this.formatNumber(last.totalTokens)}`,
-        remaining === null ? "\uB0A8\uC740 \uCEE8\uD14D\uC2A4\uD2B8 \uC54C \uC218 \uC5C6\uC74C" : `\uB0A8\uC740 \uCEE8\uD14D\uC2A4\uD2B8 ${this.formatNumber(remaining)}`
-      ].join(" \xB7 ")
-    });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text });
   }
-  readTokenBreakdown(value) {
+  readTotalTokens(value) {
     if (!value || typeof value !== "object") {
-      return { totalTokens: 0 };
+      return 0;
     }
     const totalTokens = value.totalTokens;
-    return { totalTokens: typeof totalTokens === "number" ? totalTokens : 0 };
+    return typeof totalTokens === "number" ? totalTokens : 0;
   }
   formatNumber(value) {
     return new Intl.NumberFormat().format(value);
@@ -1006,7 +1057,12 @@ var AssistantView = class extends import_obsidian2.ItemView {
   addMessage(role, text) {
     const message = this.messagesEl.createDiv({ cls: `pca-message pca-message-${this.roleClass(role)}` });
     message.createEl("strong", { cls: "pca-role", text: role });
-    message.createEl("div", { cls: "pca-message-body", text });
+    const body = message.createDiv({ cls: "pca-message-body" });
+    if (role === "Codex") {
+      import_obsidian2.MarkdownRenderer.render(this.app, text, body, "", this);
+    } else {
+      body.setText(text);
+    }
     this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
   }
   roleClass(role) {
@@ -1043,6 +1099,54 @@ var AssistantView = class extends import_obsidian2.ItemView {
       electron.shell?.openExternal(url);
     } catch {
       new import_obsidian2.Notice(url);
+    }
+  }
+};
+var MultiNoteSummaryModal = class extends import_obsidian2.Modal {
+  constructor(assistantView, vaultContext) {
+    super(assistantView.app);
+    this.assistantView = assistantView;
+    this.vaultContext = vaultContext;
+  }
+  selected = /* @__PURE__ */ new Set();
+  listEl;
+  query = "";
+  onOpen() {
+    this.titleEl.setText("\uC5EC\uB7EC \uB178\uD2B8 \uC694\uC57D");
+    this.contentEl.addClass("pca-note-modal");
+    const input = this.contentEl.createEl("input", {
+      cls: "pca-note-search",
+      placeholder: "\uB178\uD2B8 \uC774\uB984\uC73C\uB85C \uAC80\uC0C9"
+    });
+    input.oninput = () => {
+      this.query = input.value.toLowerCase();
+      this.renderList();
+    };
+    this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
+    this.renderList();
+    const footer = this.contentEl.createDiv({ cls: "pca-note-modal-footer" });
+    const summarize = footer.createEl("button", { text: "\uC120\uD0DD\uD55C \uB178\uD2B8 \uC694\uC57D" });
+    summarize.onclick = async () => {
+      const files = this.vaultContext.getMarkdownFiles().filter((file) => this.selected.has(file.path));
+      this.close();
+      await this.assistantView.summarizeFiles(files);
+    };
+  }
+  renderList() {
+    this.listEl.empty();
+    const files = this.vaultContext.getMarkdownFiles().filter((file) => file.path.toLowerCase().includes(this.query)).slice(0, 80);
+    for (const file of files) {
+      const row = this.listEl.createEl("label", { cls: "pca-note-row" });
+      const checkbox = row.createEl("input", { type: "checkbox" });
+      checkbox.checked = this.selected.has(file.path);
+      checkbox.onchange = () => {
+        if (checkbox.checked) {
+          this.selected.add(file.path);
+        } else {
+          this.selected.delete(file.path);
+        }
+      };
+      row.createEl("span", { text: file.path });
     }
   }
 };
