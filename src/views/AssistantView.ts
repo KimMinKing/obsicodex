@@ -45,11 +45,16 @@ export class AssistantView extends ItemView {
     return "Obsidian Codex Assistant";
   }
 
+  getIcon(): string {
+    return "obsidian-codex-assistant";
+  }
+
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("obsidian-codex-assistant");
     this.rootEl = container as HTMLElement;
+    this.applyTheme();
 
     await this.render();
     this.codex.onEvent((event) => this.handleCodexEvent(event));
@@ -58,6 +63,7 @@ export class AssistantView extends ItemView {
   private async render(): Promise<void> {
     this.rootEl.empty();
     this.rootEl.addClass("obsidian-codex-assistant");
+    this.applyTheme();
 
     const authStatus = await this.auth.checkStatus();
     if (!authStatus.available) {
@@ -154,11 +160,11 @@ export class AssistantView extends ItemView {
     const sendButton = compose.createEl("button", { text: "전송" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
 
-    this.renderActionMenu();
+    this.renderActionMenu(compose);
   }
 
-  private renderActionMenu(): void {
-    const actionMenu = this.rootEl.createDiv({ cls: "pca-action-menu" });
+  private renderActionMenu(parent: HTMLElement): void {
+    const actionMenu = parent.createDiv({ cls: "pca-action-menu" });
     const toggle = actionMenu.createEl("button", { cls: "pca-action-toggle", text: "작업" });
     this.actionListEl = actionMenu.createDiv({ cls: "pca-action-list is-collapsed" });
 
@@ -199,6 +205,17 @@ export class AssistantView extends ItemView {
   private createToolbarButton(parent: HTMLElement, text: string, onClick: () => void): void {
     const button = parent.createEl("button", { text });
     button.onclick = onClick;
+  }
+
+  private applyTheme(): void {
+    if (!this.rootEl) {
+      return;
+    }
+
+    this.rootEl.setAttr("data-pca-theme", this.settings.themePreset);
+    if (/^#[0-9a-f]{6}$/iu.test(this.settings.accentColor)) {
+      this.rootEl.style.setProperty("--pca-blue", this.settings.accentColor);
+    }
   }
 
   private async verifyInstallation(): Promise<void> {

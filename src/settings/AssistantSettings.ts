@@ -6,6 +6,8 @@ export interface AssistantSettings {
   dailyReviewFolder: string;
   chatHistoryFolder: string;
   maxChatMessages: number;
+  themePreset: "jupiter" | "nebula" | "midnight";
+  accentColor: string;
 }
 
 export const DEFAULT_SETTINGS: AssistantSettings = {
@@ -16,4 +18,6 @@ export const DEFAULT_SETTINGS: AssistantSettings = {
   dailyReviewFolder: "Assistant/Daily Review",
   chatHistoryFolder: "Assistant/Chats",
   maxChatMessages: 30,
+  themePreset: "jupiter",
+  accentColor: "#f7c56b",
 };

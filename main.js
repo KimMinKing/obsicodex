@@ -676,7 +676,9 @@ var DEFAULT_SETTINGS = {
   dailyFolder: "Daily",
   dailyReviewFolder: "Assistant/Daily Review",
   chatHistoryFolder: "Assistant/Chats",
-  maxChatMessages: 30
+  maxChatMessages: 30,
+  themePreset: "jupiter",
+  accentColor: "#f7c56b"
 };
 
 // src/views/AssistantView.ts
@@ -706,17 +708,22 @@ var AssistantView = class extends import_obsidian2.ItemView {
   getDisplayText() {
     return "Obsidian Codex Assistant";
   }
+  getIcon() {
+    return "obsidian-codex-assistant";
+  }
   async onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("obsidian-codex-assistant");
     this.rootEl = container;
+    this.applyTheme();
     await this.render();
     this.codex.onEvent((event) => this.handleCodexEvent(event));
   }
   async render() {
     this.rootEl.empty();
     this.rootEl.addClass("obsidian-codex-assistant");
+    this.applyTheme();
     const authStatus = await this.auth.checkStatus();
     if (!authStatus.available) {
       this.renderMissingCli(authStatus.output);
@@ -791,10 +798,10 @@ var AssistantView = class extends import_obsidian2.ItemView {
     });
     const sendButton = compose.createEl("button", { text: "\uC804\uC1A1" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
-    this.renderActionMenu();
+    this.renderActionMenu(compose);
   }
-  renderActionMenu() {
-    const actionMenu = this.rootEl.createDiv({ cls: "pca-action-menu" });
+  renderActionMenu(parent) {
+    const actionMenu = parent.createDiv({ cls: "pca-action-menu" });
     const toggle = actionMenu.createEl("button", { cls: "pca-action-toggle", text: "\uC791\uC5C5" });
     this.actionListEl = actionMenu.createDiv({ cls: "pca-action-list is-collapsed" });
     toggle.onclick = () => {
@@ -831,6 +838,15 @@ var AssistantView = class extends import_obsidian2.ItemView {
   createToolbarButton(parent, text, onClick) {
     const button = parent.createEl("button", { text });
     button.onclick = onClick;
+  }
+  applyTheme() {
+    if (!this.rootEl) {
+      return;
+    }
+    this.rootEl.setAttr("data-pca-theme", this.settings.themePreset);
+    if (/^#[0-9a-f]{6}$/iu.test(this.settings.accentColor)) {
+      this.rootEl.style.setProperty("--pca-blue", this.settings.accentColor);
+    }
   }
   async verifyInstallation() {
     const status = await this.auth.checkStatus();
@@ -1302,13 +1318,13 @@ var ObsidianCodexAssistantPlugin = class extends import_obsidian3.Plugin {
     await this.loadSettings();
     (0, import_obsidian3.addIcon)(
       "obsidian-codex-assistant",
-      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3.2" fill="currentColor" opacity="0.22"/>
-        <path d="M4.2 14.2c3.3 3.4 10.4 4.4 14.8 1.9 1.7-1 2.2-2.2 1.5-3.1-.9-1.3-4.2-1.3-8.1-.1-4 1.2-7.2 1.1-8.5-.2-.9-.9-.8-2.1.4-3.1 3.2-2.8 10.5-2.6 15.2.4"/>
-        <path d="M8.1 5.6c1.1-.5 2.4-.8 3.9-.8a7.2 7.2 0 0 1 6.7 4.6"/>
-        <path d="M18.8 15.4A7.2 7.2 0 0 1 5.7 9.3"/>
-        <path d="M9.2 11h5.6"/>
-        <path d="M8.6 13.1h6.8"/>
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="5" width="14" height="14" rx="4"/>
+        <path d="M9 10h6"/>
+        <path d="M9 14h4"/>
+        <path d="M17.5 3.5v3"/>
+        <path d="M19 5h-3"/>
+        <path d="M6.5 17.5 4 20"/>
       </svg>`
     );
     this.buildServices();
@@ -1384,6 +1400,18 @@ var ObsidianCodexAssistantSettingTab = class extends import_obsidian3.PluginSett
         await this.plugin.saveSettings();
       })
     );
+    new import_obsidian3.Setting(containerEl).setName("Assistant memory folder").setDesc("Profile, Goals, Preferences \uAC19\uC740 \uBE44\uC11C \uBB38\uB9E5 \uD30C\uC77C\uC744 \uB458 \uD3F4\uB354\uC785\uB2C8\uB2E4.").addText(
+      (text) => text.setPlaceholder("Assistant").setValue(this.plugin.settings.assistantFolder).onChange(async (value) => {
+        this.plugin.settings.assistantFolder = value.trim() || DEFAULT_SETTINGS.assistantFolder;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Daily review folder").setDesc("\uB2F5\uBCC0 \uC800\uC7A5 \uAE30\uB2A5\uC73C\uB85C \uB9CC\uB4E0 \uC77C\uC77C \uC815\uB9AC \uD30C\uC77C\uC744 \uB458 \uD3F4\uB354\uC785\uB2C8\uB2E4.").addText(
+      (text) => text.setPlaceholder("Assistant/Daily Review").setValue(this.plugin.settings.dailyReviewFolder).onChange(async (value) => {
+        this.plugin.settings.dailyReviewFolder = value.trim() || DEFAULT_SETTINGS.dailyReviewFolder;
+        await this.plugin.saveSettings();
+      })
+    );
     new import_obsidian3.Setting(containerEl).setName("Max messages per chat").setDesc("\uC774 \uAC1C\uC218\uB97C \uB118\uC73C\uBA74 \uC0C8 \uCC44\uD305\uC73C\uB85C \uB118\uC5B4\uAC00\uB3C4\uB85D \uC548\uB0B4\uD569\uB2C8\uB2E4.").addText(
       (text) => text.setPlaceholder("30").setValue(String(this.plugin.settings.maxChatMessages)).onChange(async (value) => {
         const parsed = Number.parseInt(value, 10);
@@ -1394,6 +1422,18 @@ var ObsidianCodexAssistantSettingTab = class extends import_obsidian3.PluginSett
     new import_obsidian3.Setting(containerEl).setName("Codex command").setDesc("\uC77C\uBC18\uC801\uC73C\uB85C codex \uADF8\uB300\uB85C \uB450\uBA74 \uB429\uB2C8\uB2E4.").addText(
       (text) => text.setPlaceholder("codex").setValue(this.plugin.settings.codexCommand).onChange(async (value) => {
         this.plugin.settings.codexCommand = value.trim() || DEFAULT_SETTINGS.codexCommand;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Theme preset").setDesc("\uC0AC\uC774\uB4DC\uBC14\uC758 \uAE30\uBCF8 \uC0C9\uAC10\uC785\uB2C8\uB2E4.").addDropdown(
+      (dropdown) => dropdown.addOption("jupiter", "Jupiter brown").addOption("nebula", "Nebula teal").addOption("midnight", "Midnight").setValue(this.plugin.settings.themePreset).onChange(async (value) => {
+        this.plugin.settings.themePreset = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Accent color").setDesc("\uBC84\uD2BC, \uAC15\uC870\uC120, \uAC80\uC0C9\uCC3D\uC5D0 \uC4F0\uB294 \uB300\uD45C \uC0C9\uC785\uB2C8\uB2E4. \uC608: #f7c56b").addText(
+      (text) => text.setPlaceholder("#f7c56b").setValue(this.plugin.settings.accentColor).onChange(async (value) => {
+        this.plugin.settings.accentColor = /^#[0-9a-f]{6}$/iu.test(value.trim()) ? value.trim() : DEFAULT_SETTINGS.accentColor;
         await this.plugin.saveSettings();
       })
     );

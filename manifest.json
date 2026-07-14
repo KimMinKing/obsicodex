@@ -1,7 +1,7 @@
 {
   "id": "obsidian-codex-assistant",
   "name": "Obsidian Codex Assistant",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "minAppVersion": "1.7.2",
   "description": "Codex-powered assistant for Obsidian notes",
   "author": "Mickey Kim",

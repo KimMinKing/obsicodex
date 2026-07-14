@@ -29,6 +29,30 @@
   -webkit-user-select: text;
 }
 
+.obsidian-codex-assistant[data-pca-theme="nebula"] {
+  --pca-bg-0: #071111;
+  --pca-bg-1: #102323;
+  --pca-surface: rgba(16, 36, 36, 0.84);
+  --pca-surface-strong: rgba(25, 58, 58, 0.92);
+  --pca-line: rgba(125, 211, 199, 0.24);
+  --pca-muted: #b9d6d0;
+  --pca-cyan: #f7c56b;
+  --pca-rose: #7dd3c7;
+  --pca-green: #b7d889;
+}
+
+.obsidian-codex-assistant[data-pca-theme="midnight"] {
+  --pca-bg-0: #080a10;
+  --pca-bg-1: #111827;
+  --pca-surface: rgba(20, 27, 42, 0.84);
+  --pca-surface-strong: rgba(31, 41, 55, 0.92);
+  --pca-line: rgba(148, 163, 184, 0.24);
+  --pca-muted: #cbd5e1;
+  --pca-cyan: #7dd3c7;
+  --pca-rose: #f7c56b;
+  --pca-green: #b7d889;
+}
+
 .obsidian-codex-assistant::before {
   background-image:
     radial-gradient(circle, rgba(255, 244, 230, 0.75) 0 1px, transparent 1.5px),
@@ -336,12 +360,14 @@
 
 .pca-action-menu {
   align-items: flex-end;
+  align-self: stretch;
   flex-direction: column;
   position: relative;
 }
 
 .pca-action-toggle {
-  min-width: 82px;
+  height: 100%;
+  min-width: 52px;
 }
 
 .pca-action-list {
@@ -419,6 +445,15 @@
   .pca-compose {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .pca-action-menu {
+    align-items: stretch;
+  }
+
+  .pca-action-list {
+    max-width: 100%;
+    width: 100%;
   }
 }
 

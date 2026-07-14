@@ -18,13 +18,13 @@ export default class ObsidianCodexAssistantPlugin extends Plugin {
 
     addIcon(
       "obsidian-codex-assistant",
-      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3.2" fill="currentColor" opacity="0.22"/>
-        <path d="M4.2 14.2c3.3 3.4 10.4 4.4 14.8 1.9 1.7-1 2.2-2.2 1.5-3.1-.9-1.3-4.2-1.3-8.1-.1-4 1.2-7.2 1.1-8.5-.2-.9-.9-.8-2.1.4-3.1 3.2-2.8 10.5-2.6 15.2.4"/>
-        <path d="M8.1 5.6c1.1-.5 2.4-.8 3.9-.8a7.2 7.2 0 0 1 6.7 4.6"/>
-        <path d="M18.8 15.4A7.2 7.2 0 0 1 5.7 9.3"/>
-        <path d="M9.2 11h5.6"/>
-        <path d="M8.6 13.1h6.8"/>
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="5" width="14" height="14" rx="4"/>
+        <path d="M9 10h6"/>
+        <path d="M9 14h4"/>
+        <path d="M17.5 3.5v3"/>
+        <path d="M19 5h-3"/>
+        <path d="M6.5 17.5 4 20"/>
       </svg>`,
     );
 
@@ -126,6 +126,32 @@ class ObsidianCodexAssistantSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Assistant memory folder")
+      .setDesc("Profile, Goals, Preferences 같은 비서 문맥 파일을 둘 폴더입니다.")
+      .addText((text) =>
+        text
+          .setPlaceholder("Assistant")
+          .setValue(this.plugin.settings.assistantFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.assistantFolder = value.trim() || DEFAULT_SETTINGS.assistantFolder;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Daily review folder")
+      .setDesc("답변 저장 기능으로 만든 일일 정리 파일을 둘 폴더입니다.")
+      .addText((text) =>
+        text
+          .setPlaceholder("Assistant/Daily Review")
+          .setValue(this.plugin.settings.dailyReviewFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.dailyReviewFolder = value.trim() || DEFAULT_SETTINGS.dailyReviewFolder;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Max messages per chat")
       .setDesc("이 개수를 넘으면 새 채팅으로 넘어가도록 안내합니다.")
       .addText((text) =>
@@ -148,6 +174,36 @@ class ObsidianCodexAssistantSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.codexCommand)
           .onChange(async (value) => {
             this.plugin.settings.codexCommand = value.trim() || DEFAULT_SETTINGS.codexCommand;
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Theme preset")
+      .setDesc("사이드바의 기본 색감입니다.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("jupiter", "Jupiter brown")
+          .addOption("nebula", "Nebula teal")
+          .addOption("midnight", "Midnight")
+          .setValue(this.plugin.settings.themePreset)
+          .onChange(async (value) => {
+            this.plugin.settings.themePreset = value as AssistantSettings["themePreset"];
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Accent color")
+      .setDesc("버튼, 강조선, 검색창에 쓰는 대표 색입니다. 예: #f7c56b")
+      .addText((text) =>
+        text
+          .setPlaceholder("#f7c56b")
+          .setValue(this.plugin.settings.accentColor)
+          .onChange(async (value) => {
+            this.plugin.settings.accentColor = /^#[0-9a-f]{6}$/iu.test(value.trim())
+              ? value.trim()
+              : DEFAULT_SETTINGS.accentColor;
             await this.plugin.saveSettings();
           }),
       );
