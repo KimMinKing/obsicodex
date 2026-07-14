@@ -282,3 +282,49 @@
   overflow: auto;
   padding: 8px;
 }
+
+.pca-install-block {
+  align-items: center;
+  background: rgba(247, 197, 107, 0.08);
+  border: 1px solid rgba(247, 197, 107, 0.2);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(86px, auto) 1fr auto;
+  margin-top: 10px;
+  padding: 8px;
+}
+
+.pca-install-title {
+  color: var(--pca-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pca-install-block code,
+.pca-install-note code {
+  background: rgba(11, 7, 5, 0.76);
+  border: 1px solid rgba(244, 190, 136, 0.18);
+  border-radius: 6px;
+  color: var(--pca-text);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  padding: 5px 7px;
+}
+
+.pca-install-block button {
+  background: rgba(42, 25, 14, 0.72);
+  border: 1px solid rgba(247, 197, 107, 0.28);
+  border-radius: 8px;
+  color: var(--pca-text);
+  font-size: 12px;
+  min-height: 28px;
+  padding: 4px 9px;
+}
+
+.pca-install-note {
+  color: var(--pca-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 10px;
+}

@@ -655,8 +655,12 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.rootEl.empty();
     this.rootEl.addClass("personal-codex-assistant");
     const authStatus = await this.auth.checkStatus();
+    if (!authStatus.available) {
+      this.renderMissingCli(authStatus.output);
+      return;
+    }
     if (!authStatus.signedIn) {
-      this.renderSignedOut(authStatus.output, authStatus.available);
+      this.renderSignedOut(authStatus.output);
       return;
     }
     this.renderChat();
@@ -669,25 +673,55 @@ var AssistantView = class extends import_obsidian2.ItemView {
     titleWrap.createEl("h2", { text: "Personal Codex Assistant" });
     titleWrap.createEl("p", { text: subtitle });
   }
-  renderSignedOut(output, available) {
+  renderMissingCli(output) {
+    this.renderHeader("\uBA3C\uC800 Codex CLI\uB97C \uC124\uCE58\uD558\uBA74 \uBC14\uB85C \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4.");
+    const panel = this.rootEl.createDiv({ cls: "pca-messages pca-auth-panel" });
+    panel.createEl("strong", { cls: "pca-role", text: "\uC124\uCE58 \uD544\uC694" });
+    panel.createEl("div", {
+      text: "\uC774 \uD50C\uB7EC\uADF8\uC778\uC740 \uB85C\uCEEC Codex CLI\uC640 \uC5F0\uACB0\uB429\uB2C8\uB2E4. \uC544\uB798 \uBA85\uB839\uC744 \uD130\uBBF8\uB110\uC5D0 \uBD99\uC5EC\uB123\uC5B4 \uC124\uCE58\uD55C \uB4A4, \uC124\uCE58 \uD655\uC778\uC744 \uB20C\uB7EC\uC8FC\uC138\uC694."
+    });
+    this.createInstallBlock(panel, "Windows", "npm install -g @openai/codex");
+    this.createInstallBlock(panel, "macOS / Linux", "curl -fsSL https://chatgpt.com/codex/install.sh | sh");
+    const verify = panel.createEl("div", { cls: "pca-install-note" });
+    verify.createEl("span", { text: "\uC124\uCE58 \uD6C4 \uD655\uC778 \uBA85\uB839: " });
+    verify.createEl("code", { text: "codex --version" });
+    if (output) {
+      panel.createEl("pre", { text: output });
+    }
+    const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
+    this.createToolbarButton(toolbar, "\uC124\uCE58 \uD655\uC778", () => this.render());
+    this.createToolbarButton(toolbar, "\uACF5\uC2DD \uC124\uCE58 \uBB38\uC11C \uC5F4\uAE30", () => {
+      this.openExternalUrl("https://developers.openai.com/codex/cli");
+    });
+    this.statusEl = this.rootEl.createEl("div", {
+      cls: "pca-status",
+      text: "Codex CLI \uC124\uCE58 \uB300\uAE30 \uC911"
+    });
+  }
+  createInstallBlock(parent, title, command) {
+    const block = parent.createDiv({ cls: "pca-install-block" });
+    block.createEl("span", { cls: "pca-install-title", text: title });
+    block.createEl("code", { text: command });
+    const copyButton = block.createEl("button", { text: "\uBCF5\uC0AC" });
+    copyButton.onclick = () => this.copyText(command);
+  }
+  renderSignedOut(output) {
     this.renderHeader("ChatGPT \uACC4\uC815\uC73C\uB85C Codex\uB97C \uC5F0\uACB0\uD558\uC138\uC694.");
     const messages = this.rootEl.createDiv({ cls: "pca-messages pca-auth-panel" });
     messages.createEl("strong", { cls: "pca-role", text: "\uB85C\uADF8\uC778 \uD544\uC694" });
     messages.createEl("div", {
-      text: available ? "\uBE0C\uB77C\uC6B0\uC800\uC5D0\uC11C ChatGPT \uB85C\uADF8\uC778\uC744 \uC644\uB8CC\uD558\uBA74 \uC774\uD6C4\uC5D0\uB294 \uB85C\uCEEC Codex \uC138\uC158\uC744 \uC7AC\uC0AC\uC6A9\uD569\uB2C8\uB2E4." : "Codex CLI\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. Codex CLI \uC124\uCE58 \uB610\uB294 PATH \uC124\uC815\uC774 \uD544\uC694\uD569\uB2C8\uB2E4."
+      text: "\uBE0C\uB77C\uC6B0\uC800\uC5D0\uC11C ChatGPT \uB85C\uADF8\uC778\uC744 \uC644\uB8CC\uD558\uBA74 \uC774\uD6C4\uC5D0\uB294 \uB85C\uCEEC Codex \uC138\uC158\uC744 \uC7AC\uC0AC\uC6A9\uD569\uB2C8\uB2E4."
     });
     if (output) {
       messages.createEl("pre", { text: output });
     }
     const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
     const loginButton = toolbar.createEl("button", { text: "ChatGPT\uB85C \uB85C\uADF8\uC778" });
-    loginButton.disabled = !available;
     loginButton.onclick = () => this.startLogin(loginButton);
-    const refreshButton = toolbar.createEl("button", { text: "\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778" });
-    refreshButton.onclick = () => this.render();
+    this.createToolbarButton(toolbar, "\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778", () => this.render());
     this.statusEl = this.rootEl.createEl("div", {
       cls: "pca-status",
-      text: available ? "\uB85C\uADF8\uC778 \uB300\uAE30 \uC911" : "Codex CLI \uC5C6\uC74C"
+      text: "\uB85C\uADF8\uC778 \uB300\uAE30 \uC911"
     });
   }
   renderChat() {
@@ -697,9 +731,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
       const status = await this.auth.checkStatus();
       this.addMessage("\uC2DC\uC2A4\uD15C", status.signedIn ? "Codex \uB85C\uADF8\uC778 \uC0C1\uD0DC\uC785\uB2C8\uB2E4." : "Codex \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
     });
-    this.createToolbarButton(toolbar, "\uB2E4\uC2DC \uB85C\uADF8\uC778", () => {
-      this.relogin();
-    });
+    this.createToolbarButton(toolbar, "\uB2E4\uC2DC \uB85C\uADF8\uC778", () => this.relogin());
     this.createToolbarButton(toolbar, "\uD604\uC7AC \uB178\uD2B8 \uC694\uC57D", () => {
       this.sendWithContext("\uD604\uC7AC \uB178\uD2B8\uB97C \uAC04\uACB0\uD558\uAC8C \uC694\uC57D\uD574\uC918.", false, false);
     });
@@ -709,9 +741,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.createToolbarButton(toolbar, "\uC120\uD0DD \uC601\uC5ED \uB2E4\uB4EC\uAE30", () => {
       this.sendWithContext("\uC120\uD0DD \uC601\uC5ED\uC744 \uB354 \uC790\uC5F0\uC2A4\uB7FD\uACE0 \uBA85\uD655\uD55C \uBB38\uC7A5\uC73C\uB85C \uACE0\uCCD0\uC918. \uC6D0\uBB38\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uBB38\uB9CC \uBCF4\uC5EC\uC918.", true, false);
     });
-    this.createToolbarButton(toolbar, "\uB2F5\uBCC0 \uC800\uC7A5", () => {
-      this.saveDailyReview();
-    });
+    this.createToolbarButton(toolbar, "\uB2F5\uBCC0 \uC800\uC7A5", () => this.saveDailyReview());
     const contextRow = this.rootEl.createDiv({ cls: "pca-context-row" });
     contextRow.createEl("span", {
       cls: "pca-status",
@@ -760,7 +790,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
       }
     });
     this.rootEl.empty();
-    this.renderSignedOut("\uAE30\uC874 \uB85C\uADF8\uC778 \uC815\uBCF4\uB97C \uC9C0\uC6E0\uC2B5\uB2C8\uB2E4. ChatGPT\uB85C \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.", true);
+    this.renderSignedOut("\uAE30\uC874 \uB85C\uADF8\uC778 \uC815\uBCF4\uB97C \uC9C0\uC6E0\uC2B5\uB2C8\uB2E4. ChatGPT\uB85C \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.");
   }
   async sendWithContext(userInput, selectionOnly, dailyReview) {
     const trimmed = userInput.trim();
@@ -951,6 +981,22 @@ var AssistantView = class extends import_obsidian2.ItemView {
     ].join("\n");
     const path = await this.vaultContext.saveDailyReview(markdown);
     new import_obsidian2.Notice(`\uC800\uC7A5\uB428: ${path}`);
+  }
+  async copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      new import_obsidian2.Notice("\uC124\uCE58 \uBA85\uB839\uC744 \uBCF5\uC0AC\uD588\uC2B5\uB2C8\uB2E4.");
+    } catch {
+      new import_obsidian2.Notice("\uBCF5\uC0AC\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uBA85\uB839\uC5B4\uB97C \uC9C1\uC811 \uC120\uD0DD\uD574\uC11C \uBCF5\uC0AC\uD558\uC138\uC694.");
+    }
+  }
+  openExternalUrl(url) {
+    try {
+      const electron = require("electron");
+      electron.shell?.openExternal(url);
+    } catch {
+      new import_obsidian2.Notice(url);
+    }
   }
 };
 

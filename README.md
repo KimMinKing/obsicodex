@@ -19,12 +19,32 @@ Personal Codex Assistant is an Obsidian desktop plugin that connects to the loca
 - Codex CLI installed locally
 - Codex CLI logged in with ChatGPT
 
-Check your Codex installation:
+## User Setup
+
+Install Codex CLI first, then sign in.
+
+Windows:
+
+```powershell
+npm install -g @openai/codex
+codex login
+```
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+codex login
+```
+
+Check your installation:
 
 ```powershell
 codex --version
 codex login status
 ```
+
+If Obsidian cannot find `codex`, restart Obsidian after installing the CLI. On Windows, the plugin also checks the default npm global path under `%APPDATA%\npm`.
 
 ## Development
 

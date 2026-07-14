@@ -49,8 +49,13 @@ export class AssistantView extends ItemView {
     this.rootEl.addClass("personal-codex-assistant");
 
     const authStatus = await this.auth.checkStatus();
+    if (!authStatus.available) {
+      this.renderMissingCli(authStatus.output);
+      return;
+    }
+
     if (!authStatus.signedIn) {
-      this.renderSignedOut(authStatus.output, authStatus.available);
+      this.renderSignedOut(authStatus.output);
       return;
     }
 
@@ -67,15 +72,53 @@ export class AssistantView extends ItemView {
     titleWrap.createEl("p", { text: subtitle });
   }
 
-  private renderSignedOut(output: string, available: boolean): void {
+  private renderMissingCli(output: string): void {
+    this.renderHeader("먼저 Codex CLI를 설치하면 바로 사용할 수 있습니다.");
+
+    const panel = this.rootEl.createDiv({ cls: "pca-messages pca-auth-panel" });
+    panel.createEl("strong", { cls: "pca-role", text: "설치 필요" });
+    panel.createEl("div", {
+      text: "이 플러그인은 로컬 Codex CLI와 연결됩니다. 아래 명령을 터미널에 붙여넣어 설치한 뒤, 설치 확인을 눌러주세요.",
+    });
+
+    this.createInstallBlock(panel, "Windows", "npm install -g @openai/codex");
+    this.createInstallBlock(panel, "macOS / Linux", "curl -fsSL https://chatgpt.com/codex/install.sh | sh");
+
+    const verify = panel.createEl("div", { cls: "pca-install-note" });
+    verify.createEl("span", { text: "설치 후 확인 명령: " });
+    verify.createEl("code", { text: "codex --version" });
+
+    if (output) {
+      panel.createEl("pre", { text: output });
+    }
+
+    const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
+    this.createToolbarButton(toolbar, "설치 확인", () => this.render());
+    this.createToolbarButton(toolbar, "공식 설치 문서 열기", () => {
+      this.openExternalUrl("https://developers.openai.com/codex/cli");
+    });
+
+    this.statusEl = this.rootEl.createEl("div", {
+      cls: "pca-status",
+      text: "Codex CLI 설치 대기 중",
+    });
+  }
+
+  private createInstallBlock(parent: HTMLElement, title: string, command: string): void {
+    const block = parent.createDiv({ cls: "pca-install-block" });
+    block.createEl("span", { cls: "pca-install-title", text: title });
+    block.createEl("code", { text: command });
+    const copyButton = block.createEl("button", { text: "복사" });
+    copyButton.onclick = () => this.copyText(command);
+  }
+
+  private renderSignedOut(output: string): void {
     this.renderHeader("ChatGPT 계정으로 Codex를 연결하세요.");
 
     const messages = this.rootEl.createDiv({ cls: "pca-messages pca-auth-panel" });
     messages.createEl("strong", { cls: "pca-role", text: "로그인 필요" });
     messages.createEl("div", {
-      text: available
-        ? "브라우저에서 ChatGPT 로그인을 완료하면 이후에는 로컬 Codex 세션을 재사용합니다."
-        : "Codex CLI를 찾을 수 없습니다. Codex CLI 설치 또는 PATH 설정이 필요합니다.",
+      text: "브라우저에서 ChatGPT 로그인을 완료하면 이후에는 로컬 Codex 세션을 재사용합니다.",
     });
 
     if (output) {
@@ -84,15 +127,13 @@ export class AssistantView extends ItemView {
 
     const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
     const loginButton = toolbar.createEl("button", { text: "ChatGPT로 로그인" });
-    loginButton.disabled = !available;
     loginButton.onclick = () => this.startLogin(loginButton);
 
-    const refreshButton = toolbar.createEl("button", { text: "상태 다시 확인" });
-    refreshButton.onclick = () => this.render();
+    this.createToolbarButton(toolbar, "상태 다시 확인", () => this.render());
 
     this.statusEl = this.rootEl.createEl("div", {
       cls: "pca-status",
-      text: available ? "로그인 대기 중" : "Codex CLI 없음",
+      text: "로그인 대기 중",
     });
   }
 
@@ -104,9 +145,7 @@ export class AssistantView extends ItemView {
       const status = await this.auth.checkStatus();
       this.addMessage("시스템", status.signedIn ? "Codex 로그인 상태입니다." : "Codex 로그인이 필요합니다.");
     });
-    this.createToolbarButton(toolbar, "다시 로그인", () => {
-      this.relogin();
-    });
+    this.createToolbarButton(toolbar, "다시 로그인", () => this.relogin());
     this.createToolbarButton(toolbar, "현재 노트 요약", () => {
       this.sendWithContext("현재 노트를 간결하게 요약해줘.", false, false);
     });
@@ -116,9 +155,7 @@ export class AssistantView extends ItemView {
     this.createToolbarButton(toolbar, "선택 영역 다듬기", () => {
       this.sendWithContext("선택 영역을 더 자연스럽고 명확한 문장으로 고쳐줘. 원문을 직접 수정하지 말고 제안문만 보여줘.", true, false);
     });
-    this.createToolbarButton(toolbar, "답변 저장", () => {
-      this.saveDailyReview();
-    });
+    this.createToolbarButton(toolbar, "답변 저장", () => this.saveDailyReview());
 
     const contextRow = this.rootEl.createDiv({ cls: "pca-context-row" });
     contextRow.createEl("span", {
@@ -180,7 +217,7 @@ export class AssistantView extends ItemView {
     });
 
     this.rootEl.empty();
-    this.renderSignedOut("기존 로그인 정보를 지웠습니다. ChatGPT로 다시 로그인하세요.", true);
+    this.renderSignedOut("기존 로그인 정보를 지웠습니다. ChatGPT로 다시 로그인하세요.");
   }
 
   private async sendWithContext(userInput: string, selectionOnly: boolean, dailyReview: boolean): Promise<void> {
@@ -417,5 +454,23 @@ export class AssistantView extends ItemView {
 
     const path = await this.vaultContext.saveDailyReview(markdown);
     new Notice(`저장됨: ${path}`);
+  }
+
+  private async copyText(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      new Notice("설치 명령을 복사했습니다.");
+    } catch {
+      new Notice("복사하지 못했습니다. 명령어를 직접 선택해서 복사하세요.");
+    }
+  }
+
+  private openExternalUrl(url: string): void {
+    try {
+      const electron = require("electron") as { shell?: { openExternal: (url: string) => Promise<void> } };
+      electron.shell?.openExternal(url);
+    } catch {
+      new Notice(url);
+    }
   }
 }
