@@ -13,6 +13,7 @@ interface AssistantMemory {
   goals: string;
   projects: string;
   routines: string;
+  style: string;
 }
 
 export class VaultContext {
@@ -86,6 +87,18 @@ export class VaultContext {
       ["Goals.md", "# Goals\n\n"],
       ["Projects.md", "# Projects\n\n"],
       ["Routines.md", "# Routines\n\n"],
+      [
+        "Style.md",
+        [
+          "# Style",
+          "",
+          "- 내가 자주 쓰는 표현:",
+          "- 답변에서 선호하는 말투:",
+          "- 피했으면 하는 말투:",
+          "- 우선순위를 정할 때 중요하게 보는 기준:",
+          "",
+        ].join("\n"),
+      ],
     ];
 
     for (const [name, content] of files) {
@@ -147,8 +160,42 @@ export class VaultContext {
     return path;
   }
 
+  async insertIntoActiveNote(markdown: string): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view) {
+      view.editor.replaceSelection(markdown);
+      return;
+    }
+
+    const file = this.app.workspace.getActiveFile();
+    if (file) {
+      await this.app.vault.append(file, markdown);
+    }
+  }
+
+  async appendStyleSample(text: string): Promise<string> {
+    await this.ensureFolder(this.settings.assistantFolder);
+    const path = `${this.settings.assistantFolder}/Style.md`;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    const entry = [
+      "",
+      `## Sample ${window.moment().format("YYYY-MM-DD HH:mm")}`,
+      "",
+      text.trim(),
+      "",
+    ].join("\n");
+
+    if (file instanceof TFile) {
+      await this.app.vault.append(file, entry);
+    } else {
+      await this.app.vault.create(path, `# Style\n${entry}`);
+    }
+
+    return path;
+  }
+
   async buildContextualPrompt(userInput: string, includeSelectionOnly: boolean, dailyReview: boolean): Promise<string | null> {
-    const active = await this.getActiveNote();
+    const active = dailyReview ? (await this.getTodayNote()) ?? (await this.getActiveNote()) : await this.getActiveNote();
     if (!active) {
       return null;
     }
@@ -158,6 +205,7 @@ export class VaultContext {
     const source = useSelection ? active.selection : active.content;
     const label = useSelection ? "선택 영역" : "현재 노트";
     const instruction = this.buildPrompt(userInput, dailyReview ? "daily-review" : useSelection ? "selection" : "active");
+    const maxLength = this.settings.compactContext ? (useSelection ? 5000 : 7000) : useSelection ? 8000 : 12000;
 
     return [
       instruction,
@@ -171,7 +219,7 @@ export class VaultContext {
       "이 노트의 문장과 단어 선택을 사용자의 현재 말투 샘플로 참고해라.",
       "",
       "```markdown",
-      this.truncate(source, useSelection ? 8000 : 12000),
+      this.prepareContext(source, maxLength),
       "```",
     ].join("\n");
   }
@@ -247,6 +295,7 @@ export class VaultContext {
       "사용자가 쓴 표현, 반복되는 관심사, 미뤄진 일, 현재 에너지를 추론해서 반영한다.",
       "답변은 구체적이고 바로 실행 가능해야 한다.",
       "파일을 직접 수정하지 말고 제안만 한다.",
+      this.modeInstruction(),
     ];
   }
 
@@ -257,6 +306,7 @@ export class VaultContext {
       goals: await this.readOptionalFile(`${this.settings.assistantFolder}/Goals.md`),
       projects: await this.readOptionalFile(`${this.settings.assistantFolder}/Projects.md`),
       routines: await this.readOptionalFile(`${this.settings.assistantFolder}/Routines.md`),
+      style: await this.readOptionalFile(`${this.settings.assistantFolder}/Style.md`),
     };
   }
 
@@ -285,7 +335,60 @@ export class VaultContext {
       "",
       "## Routines",
       memory.routines || "(비어 있음)",
+      "",
+      "## Style",
+      memory.style || "(비어 있음)",
     ].join("\n");
+  }
+
+  private async getTodayNote(): Promise<ActiveNoteContext | null> {
+    const path = `${this.settings.dailyFolder.replace(/\/+$/u, "")}/${window.moment().format("YYYY-MM-DD")}.md`;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      return null;
+    }
+
+    return {
+      file,
+      content: await this.app.vault.read(file),
+      selection: this.getSelection(),
+    };
+  }
+
+  private prepareContext(value: string, maxLength: number): string {
+    if (!this.settings.compactContext) {
+      return this.truncate(value, maxLength);
+    }
+
+    const taskLines = value
+      .split(/\r?\n/u)
+      .filter((line) => /(^\s*[-*]\s+\[[ xX]\])|TODO|해야|일정|마감|시험|공부|복습|프로젝트|오늘|내일/u.test(line))
+      .slice(0, 80);
+
+    const compact = [
+      taskLines.length > 0 ? "## TODO/일정/중요 문장 후보\n" + taskLines.join("\n") : "",
+      "## 원문 일부",
+      this.truncate(value, maxLength),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    return compact;
+  }
+
+  private modeInstruction(): string {
+    switch (this.settings.assistantMode) {
+      case "quick":
+        return "현재 모드: 빠른 답변. 핵심만 짧게 말하고 바로 할 일을 우선한다.";
+      case "deep":
+        return "현재 모드: 깊게 분석. 원인, 선택지, 우선순위 근거를 분명히 나눠 설명한다.";
+      case "diary":
+        return "현재 모드: 일기 정리. 사용자의 하루 흐름, 감정, 미완료 일을 자연스럽게 정리한다.";
+      case "study":
+        return "현재 모드: 공부 코치. 복습, 약점, 다음 학습 행동을 중심으로 답한다.";
+      default:
+        return "현재 모드: 균형. 짧되 필요한 맥락과 다음 행동을 함께 제시한다.";
+    }
   }
 
   private truncate(value: string, maxLength: number): string {

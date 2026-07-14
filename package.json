@@ -1,6 +1,6 @@
 {
   "name": "obsidian-codex-assistant",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Codex-powered assistant for Obsidian notes",
   "main": "main.js",
   "scripts": {

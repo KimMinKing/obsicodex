@@ -152,6 +152,20 @@ export class AssistantView extends ItemView {
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("시스템", "새 채팅입니다. 질문을 보내면 기록이 자동 저장됩니다.", false);
 
+    const modeRow = this.rootEl.createDiv({ cls: "pca-mode-row" });
+    modeRow.createEl("span", { text: "모드" });
+    const modeSelect = modeRow.createEl("select", { cls: "pca-mode-select" });
+    this.addModeOption(modeSelect, "balanced", "균형");
+    this.addModeOption(modeSelect, "quick", "빠른 답변");
+    this.addModeOption(modeSelect, "deep", "깊게 분석");
+    this.addModeOption(modeSelect, "diary", "일기 정리");
+    this.addModeOption(modeSelect, "study", "공부 코치");
+    modeSelect.value = this.settings.assistantMode;
+    modeSelect.onchange = () => {
+      this.settings.assistantMode = modeSelect.value as typeof this.settings.assistantMode;
+      this.addMessage("시스템", `응답 모드: ${modeSelect.selectedOptions[0]?.text ?? modeSelect.value}`, false);
+    };
+
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
     this.inputEl = compose.createEl("textarea", {
       placeholder: "Codex에게 요청하세요. 현재 노트를 함께 보냅니다.",
@@ -189,7 +203,13 @@ export class AssistantView extends ItemView {
     this.createActionButton("선택 영역 다듬기", () => {
       this.sendWithContext("선택 영역을 더 자연스럽고 명확한 문장으로 고쳐줘. 원문을 직접 수정하지 말고 제안문만 보여줘.", true, false);
     });
+    this.createActionButton("답변 삽입", () => this.insertLastAnswer());
+    this.createActionButton("내 스타일 기억", () => this.rememberLastAnswerStyle());
     this.createActionButton("답변 저장", () => this.saveDailyReview());
+  }
+
+  private addModeOption(select: HTMLSelectElement, value: string, label: string): void {
+    select.createEl("option", { value, text: label });
   }
 
   private createActionButton(text: string, onClick: () => void): void {
@@ -662,6 +682,27 @@ export class AssistantView extends ItemView {
     new Notice(`저장됨: ${path}`);
   }
 
+  private async insertLastAnswer(): Promise<void> {
+    if (!this.lastAssistantText.trim()) {
+      new Notice("삽입할 Codex 답변이 없습니다.");
+      return;
+    }
+
+    await this.vaultContext.insertIntoActiveNote(["", this.lastAssistantText, ""].join("\n"));
+    new Notice("현재 노트에 답변을 삽입했습니다.");
+  }
+
+  private async rememberLastAnswerStyle(): Promise<void> {
+    const sample = this.lastAssistantText.trim();
+    if (!sample) {
+      new Notice("기억할 답변이 없습니다.");
+      return;
+    }
+
+    const path = await this.vaultContext.appendStyleSample(sample);
+    new Notice(`스타일 샘플 저장됨: ${path}`);
+  }
+
   private async copyText(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
@@ -762,19 +803,31 @@ class ChatHistoryModal extends Modal {
     });
     input.oninput = () => {
       this.query = input.value.toLowerCase();
-      this.renderList();
+      void this.renderList();
     };
 
     this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
-    this.renderList();
+    void this.renderList();
   }
 
-  private renderList(): void {
+  private async renderList(): Promise<void> {
     this.listEl.empty();
-    const files = this.vaultContext
-      .getChatHistoryFiles()
-      .filter((file) => file.basename.toLowerCase().includes(this.query))
-      .slice(0, 80);
+    const files: TFile[] = [];
+
+    for (const file of this.vaultContext.getChatHistoryFiles()) {
+      if (!this.query) {
+        files.push(file);
+      } else {
+        const content = await this.vaultContext.readFile(file);
+        if (`${file.basename}\n${content}`.toLowerCase().includes(this.query)) {
+          files.push(file);
+        }
+      }
+
+      if (files.length >= 80) {
+        break;
+      }
+    }
 
     for (const file of files) {
       const row = this.listEl.createEl("button", { cls: "pca-chat-row", text: file.basename });

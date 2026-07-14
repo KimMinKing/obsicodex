@@ -166,6 +166,33 @@ class ObsidianCodexAssistantSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Default assistant mode")
+      .setDesc("새로 열었을 때 사용할 기본 응답 모드입니다.")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("balanced", "Balanced")
+          .addOption("quick", "Quick")
+          .addOption("deep", "Deep analysis")
+          .addOption("diary", "Diary review")
+          .addOption("study", "Study coach")
+          .setValue(this.plugin.settings.assistantMode)
+          .onChange(async (value) => {
+            this.plugin.settings.assistantMode = value as AssistantSettings["assistantMode"];
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Compact note context")
+      .setDesc("토큰을 아끼기 위해 TODO, 일정, 중요 문장을 우선 보내고 원문 길이를 줄입니다.")
+      .addToggle((toggle) =>
+        toggle.setValue(this.plugin.settings.compactContext).onChange(async (value) => {
+          this.plugin.settings.compactContext = value;
+          await this.plugin.saveSettings();
+        }),
+      );
+
+    new Setting(containerEl)
       .setName("Codex command")
       .setDesc("일반적으로 codex 그대로 두면 됩니다.")
       .addText((text) =>

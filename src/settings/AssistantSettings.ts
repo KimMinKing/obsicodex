@@ -1,3 +1,5 @@
+export type AssistantMode = "balanced" | "quick" | "deep" | "diary" | "study";
+
 export interface AssistantSettings {
   codexCommand: string;
   codexArgs: string[];
@@ -8,6 +10,8 @@ export interface AssistantSettings {
   maxChatMessages: number;
   themePreset: "jupiter" | "nebula" | "midnight";
   accentColor: string;
+  assistantMode: AssistantMode;
+  compactContext: boolean;
 }
 
 export const DEFAULT_SETTINGS: AssistantSettings = {
@@ -20,4 +24,6 @@ export const DEFAULT_SETTINGS: AssistantSettings = {
   maxChatMessages: 30,
   themePreset: "jupiter",
   accentColor: "#f7c56b",
+  assistantMode: "balanced",
+  compactContext: true,
 };

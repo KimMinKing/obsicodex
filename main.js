@@ -460,7 +460,19 @@ var VaultContext = class {
       ],
       ["Goals.md", "# Goals\n\n"],
       ["Projects.md", "# Projects\n\n"],
-      ["Routines.md", "# Routines\n\n"]
+      ["Routines.md", "# Routines\n\n"],
+      [
+        "Style.md",
+        [
+          "# Style",
+          "",
+          "- \uB0B4\uAC00 \uC790\uC8FC \uC4F0\uB294 \uD45C\uD604:",
+          "- \uB2F5\uBCC0\uC5D0\uC11C \uC120\uD638\uD558\uB294 \uB9D0\uD22C:",
+          "- \uD53C\uD588\uC73C\uBA74 \uD558\uB294 \uB9D0\uD22C:",
+          "- \uC6B0\uC120\uC21C\uC704\uB97C \uC815\uD560 \uB54C \uC911\uC694\uD558\uAC8C \uBCF4\uB294 \uAE30\uC900:",
+          ""
+        ].join("\n")
+      ]
     ];
     for (const [name, content] of files) {
       const path = `${this.settings.assistantFolder}/${name}`;
@@ -510,8 +522,38 @@ var VaultContext = class {
     }
     return path;
   }
+  async insertIntoActiveNote(markdown) {
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+    if (view) {
+      view.editor.replaceSelection(markdown);
+      return;
+    }
+    const file = this.app.workspace.getActiveFile();
+    if (file) {
+      await this.app.vault.append(file, markdown);
+    }
+  }
+  async appendStyleSample(text) {
+    await this.ensureFolder(this.settings.assistantFolder);
+    const path = `${this.settings.assistantFolder}/Style.md`;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    const entry = [
+      "",
+      `## Sample ${window.moment().format("YYYY-MM-DD HH:mm")}`,
+      "",
+      text.trim(),
+      ""
+    ].join("\n");
+    if (file instanceof import_obsidian.TFile) {
+      await this.app.vault.append(file, entry);
+    } else {
+      await this.app.vault.create(path, `# Style
+${entry}`);
+    }
+    return path;
+  }
   async buildContextualPrompt(userInput, includeSelectionOnly, dailyReview) {
-    const active = await this.getActiveNote();
+    const active = dailyReview ? await this.getTodayNote() ?? await this.getActiveNote() : await this.getActiveNote();
     if (!active) {
       return null;
     }
@@ -520,6 +562,7 @@ var VaultContext = class {
     const source = useSelection ? active.selection : active.content;
     const label = useSelection ? "\uC120\uD0DD \uC601\uC5ED" : "\uD604\uC7AC \uB178\uD2B8";
     const instruction = this.buildPrompt(userInput, dailyReview ? "daily-review" : useSelection ? "selection" : "active");
+    const maxLength = this.settings.compactContext ? useSelection ? 5e3 : 7e3 : useSelection ? 8e3 : 12e3;
     return [
       instruction,
       "",
@@ -532,7 +575,7 @@ var VaultContext = class {
       "\uC774 \uB178\uD2B8\uC758 \uBB38\uC7A5\uACFC \uB2E8\uC5B4 \uC120\uD0DD\uC744 \uC0AC\uC6A9\uC790\uC758 \uD604\uC7AC \uB9D0\uD22C \uC0D8\uD50C\uB85C \uCC38\uACE0\uD574\uB77C.",
       "",
       "```markdown",
-      this.truncate(source, useSelection ? 8e3 : 12e3),
+      this.prepareContext(source, maxLength),
       "```"
     ].join("\n");
   }
@@ -600,7 +643,8 @@ var VaultContext = class {
       "\uB9D0\uD22C\uB294 \uC778\uAC04\uC801\uC778 \uAC1C\uC778 \uBE44\uC11C\uC5D0 \uAC00\uAE5D\uAC8C \uD558\uB418, \uACFC\uC7A5\uB41C \uAC10\uC815 \uD45C\uD604\uC774\uB098 \uC758\uBBF8 \uC5C6\uB294 \uCE6D\uCC2C\uC740 \uD53C\uD55C\uB2E4.",
       "\uC0AC\uC6A9\uC790\uAC00 \uC4F4 \uD45C\uD604, \uBC18\uBCF5\uB418\uB294 \uAD00\uC2EC\uC0AC, \uBBF8\uB904\uC9C4 \uC77C, \uD604\uC7AC \uC5D0\uB108\uC9C0\uB97C \uCD94\uB860\uD574\uC11C \uBC18\uC601\uD55C\uB2E4.",
       "\uB2F5\uBCC0\uC740 \uAD6C\uCCB4\uC801\uC774\uACE0 \uBC14\uB85C \uC2E4\uD589 \uAC00\uB2A5\uD574\uC57C \uD55C\uB2E4.",
-      "\uD30C\uC77C\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uB9CC \uD55C\uB2E4."
+      "\uD30C\uC77C\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uB9CC \uD55C\uB2E4.",
+      this.modeInstruction()
     ];
   }
   async readAssistantMemory() {
@@ -609,7 +653,8 @@ var VaultContext = class {
       preferences: await this.readOptionalFile(`${this.settings.assistantFolder}/Preferences.md`),
       goals: await this.readOptionalFile(`${this.settings.assistantFolder}/Goals.md`),
       projects: await this.readOptionalFile(`${this.settings.assistantFolder}/Projects.md`),
-      routines: await this.readOptionalFile(`${this.settings.assistantFolder}/Routines.md`)
+      routines: await this.readOptionalFile(`${this.settings.assistantFolder}/Routines.md`),
+      style: await this.readOptionalFile(`${this.settings.assistantFolder}/Style.md`)
     };
   }
   async readOptionalFile(path) {
@@ -634,8 +679,49 @@ var VaultContext = class {
       memory.projects || "(\uBE44\uC5B4 \uC788\uC74C)",
       "",
       "## Routines",
-      memory.routines || "(\uBE44\uC5B4 \uC788\uC74C)"
+      memory.routines || "(\uBE44\uC5B4 \uC788\uC74C)",
+      "",
+      "## Style",
+      memory.style || "(\uBE44\uC5B4 \uC788\uC74C)"
     ].join("\n");
+  }
+  async getTodayNote() {
+    const path = `${this.settings.dailyFolder.replace(/\/+$/u, "")}/${window.moment().format("YYYY-MM-DD")}.md`;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian.TFile)) {
+      return null;
+    }
+    return {
+      file,
+      content: await this.app.vault.read(file),
+      selection: this.getSelection()
+    };
+  }
+  prepareContext(value, maxLength) {
+    if (!this.settings.compactContext) {
+      return this.truncate(value, maxLength);
+    }
+    const taskLines = value.split(/\r?\n/u).filter((line) => /(^\s*[-*]\s+\[[ xX]\])|TODO|해야|일정|마감|시험|공부|복습|프로젝트|오늘|내일/u.test(line)).slice(0, 80);
+    const compact = [
+      taskLines.length > 0 ? "## TODO/\uC77C\uC815/\uC911\uC694 \uBB38\uC7A5 \uD6C4\uBCF4\n" + taskLines.join("\n") : "",
+      "## \uC6D0\uBB38 \uC77C\uBD80",
+      this.truncate(value, maxLength)
+    ].filter(Boolean).join("\n\n");
+    return compact;
+  }
+  modeInstruction() {
+    switch (this.settings.assistantMode) {
+      case "quick":
+        return "\uD604\uC7AC \uBAA8\uB4DC: \uBE60\uB978 \uB2F5\uBCC0. \uD575\uC2EC\uB9CC \uC9E7\uAC8C \uB9D0\uD558\uACE0 \uBC14\uB85C \uD560 \uC77C\uC744 \uC6B0\uC120\uD55C\uB2E4.";
+      case "deep":
+        return "\uD604\uC7AC \uBAA8\uB4DC: \uAE4A\uAC8C \uBD84\uC11D. \uC6D0\uC778, \uC120\uD0DD\uC9C0, \uC6B0\uC120\uC21C\uC704 \uADFC\uAC70\uB97C \uBD84\uBA85\uD788 \uB098\uB220 \uC124\uBA85\uD55C\uB2E4.";
+      case "diary":
+        return "\uD604\uC7AC \uBAA8\uB4DC: \uC77C\uAE30 \uC815\uB9AC. \uC0AC\uC6A9\uC790\uC758 \uD558\uB8E8 \uD750\uB984, \uAC10\uC815, \uBBF8\uC644\uB8CC \uC77C\uC744 \uC790\uC5F0\uC2A4\uB7FD\uAC8C \uC815\uB9AC\uD55C\uB2E4.";
+      case "study":
+        return "\uD604\uC7AC \uBAA8\uB4DC: \uACF5\uBD80 \uCF54\uCE58. \uBCF5\uC2B5, \uC57D\uC810, \uB2E4\uC74C \uD559\uC2B5 \uD589\uB3D9\uC744 \uC911\uC2EC\uC73C\uB85C \uB2F5\uD55C\uB2E4.";
+      default:
+        return "\uD604\uC7AC \uBAA8\uB4DC: \uADE0\uD615. \uC9E7\uB418 \uD544\uC694\uD55C \uB9E5\uB77D\uACFC \uB2E4\uC74C \uD589\uB3D9\uC744 \uD568\uAED8 \uC81C\uC2DC\uD55C\uB2E4.";
+    }
   }
   truncate(value, maxLength) {
     if (value.length <= maxLength) {
@@ -678,7 +764,9 @@ var DEFAULT_SETTINGS = {
   chatHistoryFolder: "Assistant/Chats",
   maxChatMessages: 30,
   themePreset: "jupiter",
-  accentColor: "#f7c56b"
+  accentColor: "#f7c56b",
+  assistantMode: "balanced",
+  compactContext: true
 };
 
 // src/views/AssistantView.ts
@@ -792,6 +880,19 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.setTokenUsageText("\uD1A0\uD070 \uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911");
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("\uC2DC\uC2A4\uD15C", "\uC0C8 \uCC44\uD305\uC785\uB2C8\uB2E4. \uC9C8\uBB38\uC744 \uBCF4\uB0B4\uBA74 \uAE30\uB85D\uC774 \uC790\uB3D9 \uC800\uC7A5\uB429\uB2C8\uB2E4.", false);
+    const modeRow = this.rootEl.createDiv({ cls: "pca-mode-row" });
+    modeRow.createEl("span", { text: "\uBAA8\uB4DC" });
+    const modeSelect = modeRow.createEl("select", { cls: "pca-mode-select" });
+    this.addModeOption(modeSelect, "balanced", "\uADE0\uD615");
+    this.addModeOption(modeSelect, "quick", "\uBE60\uB978 \uB2F5\uBCC0");
+    this.addModeOption(modeSelect, "deep", "\uAE4A\uAC8C \uBD84\uC11D");
+    this.addModeOption(modeSelect, "diary", "\uC77C\uAE30 \uC815\uB9AC");
+    this.addModeOption(modeSelect, "study", "\uACF5\uBD80 \uCF54\uCE58");
+    modeSelect.value = this.settings.assistantMode;
+    modeSelect.onchange = () => {
+      this.settings.assistantMode = modeSelect.value;
+      this.addMessage("\uC2DC\uC2A4\uD15C", `\uC751\uB2F5 \uBAA8\uB4DC: ${modeSelect.selectedOptions[0]?.text ?? modeSelect.value}`, false);
+    };
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
     this.inputEl = compose.createEl("textarea", {
       placeholder: "Codex\uC5D0\uAC8C \uC694\uCCAD\uD558\uC138\uC694. \uD604\uC7AC \uB178\uD2B8\uB97C \uD568\uAED8 \uBCF4\uB0C5\uB2C8\uB2E4."
@@ -824,7 +925,12 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.createActionButton("\uC120\uD0DD \uC601\uC5ED \uB2E4\uB4EC\uAE30", () => {
       this.sendWithContext("\uC120\uD0DD \uC601\uC5ED\uC744 \uB354 \uC790\uC5F0\uC2A4\uB7FD\uACE0 \uBA85\uD655\uD55C \uBB38\uC7A5\uC73C\uB85C \uACE0\uCCD0\uC918. \uC6D0\uBB38\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uBB38\uB9CC \uBCF4\uC5EC\uC918.", true, false);
     });
+    this.createActionButton("\uB2F5\uBCC0 \uC0BD\uC785", () => this.insertLastAnswer());
+    this.createActionButton("\uB0B4 \uC2A4\uD0C0\uC77C \uAE30\uC5B5", () => this.rememberLastAnswerStyle());
     this.createActionButton("\uB2F5\uBCC0 \uC800\uC7A5", () => this.saveDailyReview());
+  }
+  addModeOption(select, value, label) {
+    select.createEl("option", { value, text: label });
   }
   createActionButton(text, onClick) {
     const button = this.actionListEl?.createEl("button", { text });
@@ -1208,6 +1314,23 @@ var AssistantView = class extends import_obsidian2.ItemView {
     const path = await this.vaultContext.saveDailyReview(markdown);
     new import_obsidian2.Notice(`\uC800\uC7A5\uB428: ${path}`);
   }
+  async insertLastAnswer() {
+    if (!this.lastAssistantText.trim()) {
+      new import_obsidian2.Notice("\uC0BD\uC785\uD560 Codex \uB2F5\uBCC0\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    await this.vaultContext.insertIntoActiveNote(["", this.lastAssistantText, ""].join("\n"));
+    new import_obsidian2.Notice("\uD604\uC7AC \uB178\uD2B8\uC5D0 \uB2F5\uBCC0\uC744 \uC0BD\uC785\uD588\uC2B5\uB2C8\uB2E4.");
+  }
+  async rememberLastAnswerStyle() {
+    const sample = this.lastAssistantText.trim();
+    if (!sample) {
+      new import_obsidian2.Notice("\uAE30\uC5B5\uD560 \uB2F5\uBCC0\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.");
+      return;
+    }
+    const path = await this.vaultContext.appendStyleSample(sample);
+    new import_obsidian2.Notice(`\uC2A4\uD0C0\uC77C \uC0D8\uD50C \uC800\uC7A5\uB428: ${path}`);
+  }
   async copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -1290,14 +1413,28 @@ var ChatHistoryModal = class extends import_obsidian2.Modal {
     });
     input.oninput = () => {
       this.query = input.value.toLowerCase();
-      this.renderList();
+      void this.renderList();
     };
     this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
-    this.renderList();
+    void this.renderList();
   }
-  renderList() {
+  async renderList() {
     this.listEl.empty();
-    const files = this.vaultContext.getChatHistoryFiles().filter((file) => file.basename.toLowerCase().includes(this.query)).slice(0, 80);
+    const files = [];
+    for (const file of this.vaultContext.getChatHistoryFiles()) {
+      if (!this.query) {
+        files.push(file);
+      } else {
+        const content = await this.vaultContext.readFile(file);
+        if (`${file.basename}
+${content}`.toLowerCase().includes(this.query)) {
+          files.push(file);
+        }
+      }
+      if (files.length >= 80) {
+        break;
+      }
+    }
     for (const file of files) {
       const row = this.listEl.createEl("button", { cls: "pca-chat-row", text: file.basename });
       row.onclick = async () => {
@@ -1416,6 +1553,18 @@ var ObsidianCodexAssistantSettingTab = class extends import_obsidian3.PluginSett
       (text) => text.setPlaceholder("30").setValue(String(this.plugin.settings.maxChatMessages)).onChange(async (value) => {
         const parsed = Number.parseInt(value, 10);
         this.plugin.settings.maxChatMessages = Number.isFinite(parsed) && parsed > 4 ? parsed : DEFAULT_SETTINGS.maxChatMessages;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Default assistant mode").setDesc("\uC0C8\uB85C \uC5F4\uC5C8\uC744 \uB54C \uC0AC\uC6A9\uD560 \uAE30\uBCF8 \uC751\uB2F5 \uBAA8\uB4DC\uC785\uB2C8\uB2E4.").addDropdown(
+      (dropdown) => dropdown.addOption("balanced", "Balanced").addOption("quick", "Quick").addOption("deep", "Deep analysis").addOption("diary", "Diary review").addOption("study", "Study coach").setValue(this.plugin.settings.assistantMode).onChange(async (value) => {
+        this.plugin.settings.assistantMode = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Compact note context").setDesc("\uD1A0\uD070\uC744 \uC544\uB07C\uAE30 \uC704\uD574 TODO, \uC77C\uC815, \uC911\uC694 \uBB38\uC7A5\uC744 \uC6B0\uC120 \uBCF4\uB0B4\uACE0 \uC6D0\uBB38 \uAE38\uC774\uB97C \uC904\uC785\uB2C8\uB2E4.").addToggle(
+      (toggle) => toggle.setValue(this.plugin.settings.compactContext).onChange(async (value) => {
+        this.plugin.settings.compactContext = value;
         await this.plugin.saveSettings();
       })
     );
