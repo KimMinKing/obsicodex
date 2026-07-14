@@ -15,6 +15,7 @@ export class AssistantView extends ItemView {
   private rootEl!: HTMLElement;
   private tokenUsageEl: HTMLElement | null = null;
   private thinkingEl: HTMLElement | null = null;
+  private actionListEl: HTMLElement | null = null;
   private lastAssistantText = "";
 
   constructor(
@@ -129,7 +130,6 @@ export class AssistantView extends ItemView {
     const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
     const loginButton = toolbar.createEl("button", { text: "ChatGPT로 로그인" });
     loginButton.onclick = () => this.startLogin(loginButton);
-
     this.createToolbarButton(toolbar, "상태 다시 확인", () => this.render());
 
     this.rootEl.createEl("div", {
@@ -140,30 +140,6 @@ export class AssistantView extends ItemView {
 
   private renderChat(): void {
     this.renderHeader("노트와 목표를 읽고 다음 행동을 정리합니다.");
-
-    const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
-    this.createToolbarButton(toolbar, "로그인 상태", async () => {
-      const status = await this.auth.checkStatus();
-      this.addMessage("시스템", status.signedIn ? "Codex 로그인 상태입니다." : "Codex 로그인이 필요합니다.");
-    });
-    this.createToolbarButton(toolbar, "다시 로그인", () => this.relogin());
-    this.createToolbarButton(toolbar, "현재 노트 요약", () => {
-      this.sendWithContext("현재 노트를 간결하게 요약해줘.", false, false);
-    });
-    this.createToolbarButton(toolbar, "여러 노트 요약", () => this.openMultiNoteModal());
-    this.createToolbarButton(toolbar, "오늘 정리", () => {
-      this.sendWithContext("오늘 기록을 바탕으로 해야 할 일, 일정, 우선순위를 정리해줘.", false, true);
-    });
-    this.createToolbarButton(toolbar, "선택 영역 다듬기", () => {
-      this.sendWithContext("선택 영역을 더 자연스럽고 명확한 문장으로 고쳐줘. 원문을 직접 수정하지 말고 제안문만 보여줘.", true, false);
-    });
-    this.createToolbarButton(toolbar, "답변 저장", () => this.saveDailyReview());
-
-    const contextRow = this.rootEl.createDiv({ cls: "pca-context-row" });
-    contextRow.createEl("span", {
-      cls: "pca-status",
-      text: this.approvals.explainReadOnlyMode(),
-    });
 
     this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
     this.setTokenUsageText("토큰 사용량 대기 중");
@@ -178,6 +154,45 @@ export class AssistantView extends ItemView {
 
     const sendButton = compose.createEl("button", { text: "전송" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
+
+    this.renderActionMenu();
+  }
+
+  private renderActionMenu(): void {
+    const actionMenu = this.rootEl.createDiv({ cls: "pca-action-menu" });
+    const toggle = actionMenu.createEl("button", { cls: "pca-action-toggle", text: "작업" });
+    this.actionListEl = actionMenu.createDiv({ cls: "pca-action-list is-collapsed" });
+
+    toggle.onclick = () => {
+      this.actionListEl?.toggleClass("is-collapsed", !this.actionListEl.hasClass("is-collapsed"));
+    };
+
+    this.createActionButton("로그인 상태", async () => {
+      const status = await this.auth.checkStatus();
+      this.addMessage("시스템", status.signedIn ? "Codex 로그인 상태입니다." : "Codex 로그인이 필요합니다.");
+    });
+    this.createActionButton("다시 로그인", () => this.relogin());
+    this.createActionButton("현재 노트 요약", () => {
+      this.sendWithContext("현재 노트를 간결하게 요약해줘.", false, false);
+    });
+    this.createActionButton("여러 노트 요약", () => this.openMultiNoteModal());
+    this.createActionButton("오늘 정리", () => {
+      this.sendWithContext("오늘 기록을 바탕으로 해야 할 일, 일정, 우선순위를 정리해줘.", false, true);
+    });
+    this.createActionButton("선택 영역 다듬기", () => {
+      this.sendWithContext("선택 영역을 더 자연스럽고 명확한 문장으로 고쳐줘. 원문을 직접 수정하지 말고 제안문만 보여줘.", true, false);
+    });
+    this.createActionButton("답변 저장", () => this.saveDailyReview());
+  }
+
+  private createActionButton(text: string, onClick: () => void): void {
+    const button = this.actionListEl?.createEl("button", { text });
+    if (button) {
+      button.onclick = () => {
+        this.actionListEl?.addClass("is-collapsed");
+        onClick();
+      };
+    }
   }
 
   private createToolbarButton(parent: HTMLElement, text: string, onClick: () => void): void {
@@ -309,11 +324,9 @@ export class AssistantView extends ItemView {
       const text = String(event.payload);
       if (/access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(text)) {
         this.hideThinking();
-        this.addMessage("시스템", "Codex 로그인 토큰을 갱신하지 못했습니다. 상단의 '다시 로그인'을 눌러 다시 로그인하세요.");
+        this.addMessage("시스템", "Codex 로그인 토큰을 갱신하지 못했습니다. '다시 로그인'을 눌러 다시 로그인하세요.");
         this.codex.stop();
-        return;
       }
-
       return;
     }
 
@@ -331,7 +344,7 @@ export class AssistantView extends ItemView {
 
   private extractText(payload: unknown): string {
     if (this.isUnauthorizedPayload(payload)) {
-      return "Codex 로그인 토큰을 갱신하지 못했습니다. 상단의 '다시 로그인'을 눌러 다시 로그인하세요.";
+      return "Codex 로그인 토큰을 갱신하지 못했습니다. '다시 로그인'을 눌러 다시 로그인하세요.";
     }
 
     if (typeof payload === "string") {
@@ -339,8 +352,7 @@ export class AssistantView extends ItemView {
     }
 
     if (payload && typeof payload === "object") {
-      const record = payload as Record<string, unknown>;
-      const notificationText = this.extractNotificationText(record);
+      const notificationText = this.extractNotificationText(payload as Record<string, unknown>);
       if (notificationText) {
         return notificationText;
       }

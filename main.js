@@ -663,6 +663,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
   rootEl;
   tokenUsageEl = null;
   thinkingEl = null;
+  actionListEl = null;
   lastAssistantText = "";
   getViewType() {
     return ASSISTANT_VIEW_TYPE;
@@ -753,28 +754,6 @@ var AssistantView = class extends import_obsidian2.ItemView {
   }
   renderChat() {
     this.renderHeader("\uB178\uD2B8\uC640 \uBAA9\uD45C\uB97C \uC77D\uACE0 \uB2E4\uC74C \uD589\uB3D9\uC744 \uC815\uB9AC\uD569\uB2C8\uB2E4.");
-    const toolbar = this.rootEl.createDiv({ cls: "pca-toolbar" });
-    this.createToolbarButton(toolbar, "\uB85C\uADF8\uC778 \uC0C1\uD0DC", async () => {
-      const status = await this.auth.checkStatus();
-      this.addMessage("\uC2DC\uC2A4\uD15C", status.signedIn ? "Codex \uB85C\uADF8\uC778 \uC0C1\uD0DC\uC785\uB2C8\uB2E4." : "Codex \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
-    });
-    this.createToolbarButton(toolbar, "\uB2E4\uC2DC \uB85C\uADF8\uC778", () => this.relogin());
-    this.createToolbarButton(toolbar, "\uD604\uC7AC \uB178\uD2B8 \uC694\uC57D", () => {
-      this.sendWithContext("\uD604\uC7AC \uB178\uD2B8\uB97C \uAC04\uACB0\uD558\uAC8C \uC694\uC57D\uD574\uC918.", false, false);
-    });
-    this.createToolbarButton(toolbar, "\uC5EC\uB7EC \uB178\uD2B8 \uC694\uC57D", () => this.openMultiNoteModal());
-    this.createToolbarButton(toolbar, "\uC624\uB298 \uC815\uB9AC", () => {
-      this.sendWithContext("\uC624\uB298 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C \uD574\uC57C \uD560 \uC77C, \uC77C\uC815, \uC6B0\uC120\uC21C\uC704\uB97C \uC815\uB9AC\uD574\uC918.", false, true);
-    });
-    this.createToolbarButton(toolbar, "\uC120\uD0DD \uC601\uC5ED \uB2E4\uB4EC\uAE30", () => {
-      this.sendWithContext("\uC120\uD0DD \uC601\uC5ED\uC744 \uB354 \uC790\uC5F0\uC2A4\uB7FD\uACE0 \uBA85\uD655\uD55C \uBB38\uC7A5\uC73C\uB85C \uACE0\uCCD0\uC918. \uC6D0\uBB38\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uBB38\uB9CC \uBCF4\uC5EC\uC918.", true, false);
-    });
-    this.createToolbarButton(toolbar, "\uB2F5\uBCC0 \uC800\uC7A5", () => this.saveDailyReview());
-    const contextRow = this.rootEl.createDiv({ cls: "pca-context-row" });
-    contextRow.createEl("span", {
-      cls: "pca-status",
-      text: this.approvals.explainReadOnlyMode()
-    });
     this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
     this.setTokenUsageText("\uD1A0\uD070 \uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911");
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
@@ -785,6 +764,40 @@ var AssistantView = class extends import_obsidian2.ItemView {
     });
     const sendButton = compose.createEl("button", { text: "\uC804\uC1A1" });
     sendButton.onclick = () => this.sendWithContext(this.inputEl.value, false, false);
+    this.renderActionMenu();
+  }
+  renderActionMenu() {
+    const actionMenu = this.rootEl.createDiv({ cls: "pca-action-menu" });
+    const toggle = actionMenu.createEl("button", { cls: "pca-action-toggle", text: "\uC791\uC5C5" });
+    this.actionListEl = actionMenu.createDiv({ cls: "pca-action-list is-collapsed" });
+    toggle.onclick = () => {
+      this.actionListEl?.toggleClass("is-collapsed", !this.actionListEl.hasClass("is-collapsed"));
+    };
+    this.createActionButton("\uB85C\uADF8\uC778 \uC0C1\uD0DC", async () => {
+      const status = await this.auth.checkStatus();
+      this.addMessage("\uC2DC\uC2A4\uD15C", status.signedIn ? "Codex \uB85C\uADF8\uC778 \uC0C1\uD0DC\uC785\uB2C8\uB2E4." : "Codex \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+    });
+    this.createActionButton("\uB2E4\uC2DC \uB85C\uADF8\uC778", () => this.relogin());
+    this.createActionButton("\uD604\uC7AC \uB178\uD2B8 \uC694\uC57D", () => {
+      this.sendWithContext("\uD604\uC7AC \uB178\uD2B8\uB97C \uAC04\uACB0\uD558\uAC8C \uC694\uC57D\uD574\uC918.", false, false);
+    });
+    this.createActionButton("\uC5EC\uB7EC \uB178\uD2B8 \uC694\uC57D", () => this.openMultiNoteModal());
+    this.createActionButton("\uC624\uB298 \uC815\uB9AC", () => {
+      this.sendWithContext("\uC624\uB298 \uAE30\uB85D\uC744 \uBC14\uD0D5\uC73C\uB85C \uD574\uC57C \uD560 \uC77C, \uC77C\uC815, \uC6B0\uC120\uC21C\uC704\uB97C \uC815\uB9AC\uD574\uC918.", false, true);
+    });
+    this.createActionButton("\uC120\uD0DD \uC601\uC5ED \uB2E4\uB4EC\uAE30", () => {
+      this.sendWithContext("\uC120\uD0DD \uC601\uC5ED\uC744 \uB354 \uC790\uC5F0\uC2A4\uB7FD\uACE0 \uBA85\uD655\uD55C \uBB38\uC7A5\uC73C\uB85C \uACE0\uCCD0\uC918. \uC6D0\uBB38\uC744 \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uB9D0\uACE0 \uC81C\uC548\uBB38\uB9CC \uBCF4\uC5EC\uC918.", true, false);
+    });
+    this.createActionButton("\uB2F5\uBCC0 \uC800\uC7A5", () => this.saveDailyReview());
+  }
+  createActionButton(text, onClick) {
+    const button = this.actionListEl?.createEl("button", { text });
+    if (button) {
+      button.onclick = () => {
+        this.actionListEl?.addClass("is-collapsed");
+        onClick();
+      };
+    }
   }
   createToolbarButton(parent, text, onClick) {
     const button = parent.createEl("button", { text });
@@ -892,9 +905,8 @@ var AssistantView = class extends import_obsidian2.ItemView {
       const text = String(event.payload);
       if (/access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(text)) {
         this.hideThinking();
-        this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uB85C\uADF8\uC778 \uD1A0\uD070\uC744 \uAC31\uC2E0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC0C1\uB2E8\uC758 '\uB2E4\uC2DC \uB85C\uADF8\uC778'\uC744 \uB20C\uB7EC \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.");
+        this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uB85C\uADF8\uC778 \uD1A0\uD070\uC744 \uAC31\uC2E0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. '\uB2E4\uC2DC \uB85C\uADF8\uC778'\uC744 \uB20C\uB7EC \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.");
         this.codex.stop();
-        return;
       }
       return;
     }
@@ -910,14 +922,13 @@ var AssistantView = class extends import_obsidian2.ItemView {
   }
   extractText(payload) {
     if (this.isUnauthorizedPayload(payload)) {
-      return "Codex \uB85C\uADF8\uC778 \uD1A0\uD070\uC744 \uAC31\uC2E0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. \uC0C1\uB2E8\uC758 '\uB2E4\uC2DC \uB85C\uADF8\uC778'\uC744 \uB20C\uB7EC \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.";
+      return "Codex \uB85C\uADF8\uC778 \uD1A0\uD070\uC744 \uAC31\uC2E0\uD558\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4. '\uB2E4\uC2DC \uB85C\uADF8\uC778'\uC744 \uB20C\uB7EC \uB2E4\uC2DC \uB85C\uADF8\uC778\uD558\uC138\uC694.";
     }
     if (typeof payload === "string") {
       return payload;
     }
     if (payload && typeof payload === "object") {
-      const record = payload;
-      const notificationText = this.extractNotificationText(record);
+      const notificationText = this.extractNotificationText(payload);
       if (notificationText) {
         return notificationText;
       }
@@ -1160,6 +1171,17 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
   approvals;
   async onload() {
     await this.loadSettings();
+    (0, import_obsidian3.addIcon)(
+      "personal-codex-assistant",
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.2" fill="currentColor" opacity="0.22"/>
+        <path d="M4.2 14.2c3.3 3.4 10.4 4.4 14.8 1.9 1.7-1 2.2-2.2 1.5-3.1-.9-1.3-4.2-1.3-8.1-.1-4 1.2-7.2 1.1-8.5-.2-.9-.9-.8-2.1.4-3.1 3.2-2.8 10.5-2.6 15.2.4"/>
+        <path d="M8.1 5.6c1.1-.5 2.4-.8 3.9-.8a7.2 7.2 0 0 1 6.7 4.6"/>
+        <path d="M18.8 15.4A7.2 7.2 0 0 1 5.7 9.3"/>
+        <path d="M9.2 11h5.6"/>
+        <path d="M8.6 13.1h6.8"/>
+      </svg>`
+    );
     this.codex = new CodexClient(this.assistantSettings);
     this.auth = new CodexAuth(this.assistantSettings.codexCommand);
     this.vaultContext = new VaultContext(this.app, this.assistantSettings);
@@ -1168,7 +1190,7 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
       ASSISTANT_VIEW_TYPE,
       (leaf) => new AssistantView(leaf, this.codex, this.auth, this.vaultContext, this.approvals)
     );
-    this.addRibbonIcon("bot", "Codex Assistant \uC5F4\uAE30", () => {
+    this.addRibbonIcon("personal-codex-assistant", "Codex Assistant \uC5F4\uAE30", () => {
       this.activateView();
     });
     this.addCommand({

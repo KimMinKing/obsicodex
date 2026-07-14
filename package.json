@@ -1,6 +1,6 @@
 {
   "name": "personal-codex-assistant",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Codex-powered personal assistant for Obsidian",
   "main": "main.js",
   "scripts": {
