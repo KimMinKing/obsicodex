@@ -2,6 +2,6 @@ export class ApprovalManager {
   readonly fileWritesEnabled = false;
 
   explainReadOnlyMode(): string {
-    return "v0.1은 노트를 직접 수정하지 않고 수정 제안만 표시합니다.";
+    return "파일 변경이 필요한 작업은 먼저 제안으로 보여주고, 사용자가 승인한 뒤 적용합니다.";
   }
 }

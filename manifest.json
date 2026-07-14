@@ -1,9 +1,9 @@
 {
-  "id": "personal-codex-assistant",
-  "name": "Personal Codex Assistant",
-  "version": "0.1.5",
+  "id": "obsidian-codex-assistant",
+  "name": "Obsidian Codex Assistant",
+  "version": "0.1.6",
   "minAppVersion": "1.7.2",
-  "description": "Codex-powered personal assistant for Obsidian",
+  "description": "Codex-powered assistant for Obsidian notes",
   "author": "Mickey Kim",
   "isDesktopOnly": true
 }

@@ -23,7 +23,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
-  default: () => PersonalCodexAssistantPlugin
+  default: () => ObsidianCodexAssistantPlugin
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian3 = require("obsidian");
@@ -352,8 +352,8 @@ var CodexClient = class {
     }
     this.send("initialize", {
       clientInfo: {
-        name: "personal_codex_assistant",
-        title: "Personal Codex Assistant",
+        name: "obsidian_codex_assistant",
+        title: "Obsidian Codex Assistant",
         version: "0.1.0"
       }
     });
@@ -421,6 +421,14 @@ var VaultContext = class {
   getMarkdownFiles() {
     return this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
   }
+  getChatHistoryFiles() {
+    const folder = this.settings.chatHistoryFolder.replace(/\/+$/u, "");
+    const prefix = `${folder}/`;
+    return this.app.vault.getMarkdownFiles().filter((file) => file.path.startsWith(prefix)).sort((a, b) => b.stat.mtime - a.stat.mtime);
+  }
+  async readFile(file) {
+    return this.app.vault.read(file);
+  }
   getSelection() {
     const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
     return view?.editor.getSelection() ?? "";
@@ -428,6 +436,7 @@ var VaultContext = class {
   async ensureAssistantFiles() {
     await this.ensureFolder(this.settings.assistantFolder);
     await this.ensureFolder(this.settings.dailyReviewFolder);
+    await this.ensureFolder(this.settings.chatHistoryFolder);
     const files = [
       ["Profile.md", "# Profile\n\n- \uC774\uB984:\n- \uD604\uC7AC \uC9D1\uC911\uD558\uB294 \uC77C:\n- \uC911\uC694\uD558\uAC8C \uC5EC\uAE30\uB294 \uAC83:\n"],
       [
@@ -459,6 +468,35 @@ var VaultContext = class {
         await this.app.vault.create(path, content);
       }
     }
+  }
+  async createChatSession(firstMessage) {
+    await this.ensureFolder(this.settings.chatHistoryFolder);
+    const timestamp = window.moment().format("YYYY-MM-DD HH-mm-ss");
+    const title = this.sanitizeFileName(firstMessage.split(/\r?\n/u)[0].trim()).slice(0, 48) || "New chat";
+    const path = `${this.settings.chatHistoryFolder}/${timestamp} ${title}.md`;
+    const markdown = [
+      `# ${title}`,
+      "",
+      `- Created: ${window.moment().format("YYYY-MM-DD HH:mm:ss")}`,
+      "",
+      "## Conversation",
+      ""
+    ].join("\n");
+    await this.app.vault.create(path, markdown);
+    return path;
+  }
+  async appendChatMessage(path, role, text) {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof import_obsidian.TFile)) {
+      return;
+    }
+    const entry = [
+      `### ${role} \xB7 ${window.moment().format("HH:mm:ss")}`,
+      "",
+      text.trim() || "(empty)",
+      ""
+    ].join("\n");
+    await this.app.vault.append(file, entry);
   }
   async saveDailyReview(markdown) {
     await this.ensureFolder(this.settings.dailyReviewFolder);
@@ -503,19 +541,13 @@ var VaultContext = class {
     const noteBlocks = [];
     for (const file of files.slice(0, 12)) {
       const content = await this.app.vault.read(file);
-      noteBlocks.push([
-        `## ${file.path}`,
-        "```markdown",
-        this.truncate(content, 5e3),
-        "```"
-      ].join("\n"));
+      noteBlocks.push([`## ${file.path}`, "```markdown", this.truncate(content, 5e3), "```"].join("\n"));
     }
     return [
       ...this.basePrompt(),
       "",
       "\uC0AC\uC6A9\uC790\uAC00 \uC120\uD0DD\uD55C \uC5EC\uB7EC \uB178\uD2B8\uB97C \uD568\uAED8 \uC77D\uACE0 \uC885\uD569 \uC694\uC57D\uD574\uB77C.",
       "\uC911\uBCF5\uB418\uB294 \uB0B4\uC6A9\uC740 \uD569\uCE58\uACE0, \uD30C\uC77C\uBCC4 \uD575\uC2EC\uACFC \uC804\uCCB4 \uD750\uB984\uC744 \uAD6C\uBD84\uD574\uB77C.",
-      "\uB2F5\uBCC0\uC740 \uB2E4\uC74C \uD615\uC2DD\uC744 \uB530\uB978\uB2E4.",
       "",
       "## \uC804\uCCB4 \uC694\uC57D",
       "## \uD30C\uC77C\uBCC4 \uD575\uC2EC",
@@ -559,12 +591,7 @@ var VaultContext = class {
         userInput
       ].join("\n");
     }
-    return [
-      ...this.basePrompt(),
-      "",
-      "\uC0AC\uC6A9\uC790 \uC694\uCCAD:",
-      userInput
-    ].join("\n");
+    return [...this.basePrompt(), "", "\uC0AC\uC6A9\uC790 \uC694\uCCAD:", userInput].join("\n");
   }
   basePrompt() {
     return [
@@ -618,6 +645,9 @@ var VaultContext = class {
 
 ...(\uC77C\uBD80 \uC0DD\uB7B5\uB428)`;
   }
+  sanitizeFileName(value) {
+    return value.replace(/[\\/:*?"<>|#^[\]]/gu, " ").replace(/\s+/gu, " ").trim();
+  }
   async ensureFolder(path) {
     const parts = path.split("/").filter(Boolean);
     let current = "";
@@ -634,7 +664,7 @@ var VaultContext = class {
 var ApprovalManager = class {
   fileWritesEnabled = false;
   explainReadOnlyMode() {
-    return "v0.1\uC740 \uB178\uD2B8\uB97C \uC9C1\uC811 \uC218\uC815\uD558\uC9C0 \uC54A\uACE0 \uC218\uC815 \uC81C\uC548\uB9CC \uD45C\uC2DC\uD569\uB2C8\uB2E4.";
+    return "\uD30C\uC77C \uBCC0\uACBD\uC774 \uD544\uC694\uD55C \uC791\uC5C5\uC740 \uBA3C\uC800 \uC81C\uC548\uC73C\uB85C \uBCF4\uC5EC\uC8FC\uACE0, \uC0AC\uC6A9\uC790\uAC00 \uC2B9\uC778\uD55C \uB4A4 \uC801\uC6A9\uD569\uB2C8\uB2E4.";
   }
 };
 
@@ -644,19 +674,22 @@ var DEFAULT_SETTINGS = {
   codexArgs: ["app-server", "--stdio"],
   assistantFolder: "Assistant",
   dailyFolder: "Daily",
-  dailyReviewFolder: "Assistant/Daily Review"
+  dailyReviewFolder: "Assistant/Daily Review",
+  chatHistoryFolder: "Assistant/Chats",
+  maxChatMessages: 30
 };
 
 // src/views/AssistantView.ts
 var import_obsidian2 = require("obsidian");
-var ASSISTANT_VIEW_TYPE = "personal-codex-assistant-view";
+var ASSISTANT_VIEW_TYPE = "obsidian-codex-assistant-view";
 var AssistantView = class extends import_obsidian2.ItemView {
-  constructor(leaf, codex, auth, vaultContext, approvals) {
+  constructor(leaf, codex, auth, vaultContext, approvals, settings) {
     super(leaf);
     this.codex = codex;
     this.auth = auth;
     this.vaultContext = vaultContext;
     this.approvals = approvals;
+    this.settings = settings;
   }
   messagesEl;
   inputEl;
@@ -664,24 +697,26 @@ var AssistantView = class extends import_obsidian2.ItemView {
   tokenUsageEl = null;
   thinkingEl = null;
   actionListEl = null;
+  currentChatPath = null;
+  chatMessageCount = 0;
   lastAssistantText = "";
   getViewType() {
     return ASSISTANT_VIEW_TYPE;
   }
   getDisplayText() {
-    return "Codex Assistant";
+    return "Obsidian Codex Assistant";
   }
   async onOpen() {
     const container = this.containerEl.children[1];
     container.empty();
-    container.addClass("personal-codex-assistant");
+    container.addClass("obsidian-codex-assistant");
     this.rootEl = container;
     await this.render();
     this.codex.onEvent((event) => this.handleCodexEvent(event));
   }
   async render() {
     this.rootEl.empty();
-    this.rootEl.addClass("personal-codex-assistant");
+    this.rootEl.addClass("obsidian-codex-assistant");
     const authStatus = await this.auth.checkStatus();
     if (!authStatus.available) {
       this.renderMissingCli(authStatus.output);
@@ -698,7 +733,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
     const mark = header.createDiv({ cls: "pca-orbit-mark" });
     mark.createDiv({ cls: "pca-orbit-core" });
     const titleWrap = header.createDiv({ cls: "pca-title-wrap" });
-    titleWrap.createEl("h2", { text: "Personal Codex Assistant" });
+    titleWrap.createEl("h2", { text: "Obsidian Codex Assistant" });
     titleWrap.createEl("p", { text: subtitle });
   }
   renderMissingCli(output) {
@@ -720,10 +755,6 @@ var AssistantView = class extends import_obsidian2.ItemView {
     this.createToolbarButton(toolbar, "\uC124\uCE58 \uD655\uC778", () => this.verifyInstallation());
     this.createToolbarButton(toolbar, "\uACF5\uC2DD \uC124\uCE58 \uBB38\uC11C \uC5F4\uAE30", () => {
       this.openExternalUrl("https://developers.openai.com/codex/cli");
-    });
-    this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "Codex CLI \uC124\uCE58 \uB300\uAE30 \uC911"
     });
   }
   createInstallBlock(parent, title, command) {
@@ -747,17 +778,13 @@ var AssistantView = class extends import_obsidian2.ItemView {
     const loginButton = toolbar.createEl("button", { text: "ChatGPT\uB85C \uB85C\uADF8\uC778" });
     loginButton.onclick = () => this.startLogin(loginButton);
     this.createToolbarButton(toolbar, "\uC0C1\uD0DC \uB2E4\uC2DC \uD655\uC778", () => this.render());
-    this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "\uB85C\uADF8\uC778 \uB300\uAE30 \uC911"
-    });
   }
   renderChat() {
     this.renderHeader("\uB178\uD2B8\uC640 \uBAA9\uD45C\uB97C \uC77D\uACE0 \uB2E4\uC74C \uD589\uB3D9\uC744 \uC815\uB9AC\uD569\uB2C8\uB2E4.");
     this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
     this.setTokenUsageText("\uD1A0\uD070 \uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911");
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
-    this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uC5F0\uACB0 \uC804\uC785\uB2C8\uB2E4. \uC9C8\uBB38\uC744 \uBCF4\uB0B4\uBA74 app-server \uC2E4\uD589\uC744 \uC2DC\uB3C4\uD569\uB2C8\uB2E4.");
+    this.addMessage("\uC2DC\uC2A4\uD15C", "\uC0C8 \uCC44\uD305\uC785\uB2C8\uB2E4. \uC9C8\uBB38\uC744 \uBCF4\uB0B4\uBA74 \uAE30\uB85D\uC774 \uC790\uB3D9 \uC800\uC7A5\uB429\uB2C8\uB2E4.", false);
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
     this.inputEl = compose.createEl("textarea", {
       placeholder: "Codex\uC5D0\uAC8C \uC694\uCCAD\uD558\uC138\uC694. \uD604\uC7AC \uB178\uD2B8\uB97C \uD568\uAED8 \uBCF4\uB0C5\uB2C8\uB2E4."
@@ -773,6 +800,8 @@ var AssistantView = class extends import_obsidian2.ItemView {
     toggle.onclick = () => {
       this.actionListEl?.toggleClass("is-collapsed", !this.actionListEl.hasClass("is-collapsed"));
     };
+    this.createActionButton("\uC0C8 \uCC44\uD305", () => this.startNewChat());
+    this.createActionButton("\uCC44\uD305 \uBD88\uB7EC\uC624\uAE30", () => this.openChatHistoryModal());
     this.createActionButton("\uB85C\uADF8\uC778 \uC0C1\uD0DC", async () => {
       const status = await this.auth.checkStatus();
       this.addMessage("\uC2DC\uC2A4\uD15C", status.signedIn ? "Codex \uB85C\uADF8\uC778 \uC0C1\uD0DC\uC785\uB2C8\uB2E4." : "Codex \uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
@@ -846,8 +875,13 @@ var AssistantView = class extends import_obsidian2.ItemView {
     if (!trimmed) {
       return;
     }
+    if (this.chatMessageCount >= this.settings.maxChatMessages) {
+      await this.rolloverChat();
+    }
     this.inputEl.value = "";
+    await this.ensureChatSession(trimmed);
     this.addMessage("\uB098", trimmed);
+    await this.persistMessage("\uB098", trimmed);
     this.showThinking();
     const prompt = await this.vaultContext.buildContextualPrompt(trimmed, selectionOnly, dailyReview);
     if (!prompt) {
@@ -863,7 +897,12 @@ var AssistantView = class extends import_obsidian2.ItemView {
     }
   }
   async sendPrompt(prompt, label) {
+    if (this.chatMessageCount >= this.settings.maxChatMessages) {
+      await this.rolloverChat();
+    }
+    await this.ensureChatSession(label);
     this.addMessage("\uB098", label);
+    await this.persistMessage("\uB098", label);
     this.showThinking();
     try {
       this.codex.sendPrompt(prompt);
@@ -873,8 +912,38 @@ var AssistantView = class extends import_obsidian2.ItemView {
       this.addMessage("\uC2DC\uC2A4\uD15C", message);
     }
   }
+  async ensureChatSession(firstMessage) {
+    if (!this.currentChatPath) {
+      this.currentChatPath = await this.vaultContext.createChatSession(firstMessage);
+      this.chatMessageCount = 0;
+      new import_obsidian2.Notice("\uC0C8 \uCC44\uD305 \uAE30\uB85D\uC744 \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4.");
+    }
+  }
+  async persistMessage(role, text) {
+    if (!this.currentChatPath) {
+      return;
+    }
+    await this.vaultContext.appendChatMessage(this.currentChatPath, role, text);
+    this.chatMessageCount += 1;
+  }
+  async rolloverChat() {
+    this.addMessage("\uC2DC\uC2A4\uD15C", "\uCC44\uD305\uC774 \uAE38\uC5B4\uC838 \uC0C8 \uCC44\uD305\uC73C\uB85C \uB118\uC5B4\uAC11\uB2C8\uB2E4. \uC774\uC804 \uAE30\uB85D\uC740 \uC800\uC7A5\uB418\uC5B4 \uC788\uC2B5\uB2C8\uB2E4.", false);
+    this.currentChatPath = null;
+    this.chatMessageCount = 0;
+    this.codex.stop();
+  }
+  startNewChat() {
+    this.currentChatPath = null;
+    this.chatMessageCount = 0;
+    this.codex.stop();
+    this.messagesEl.empty();
+    this.addMessage("\uC2DC\uC2A4\uD15C", "\uC0C8 \uCC44\uD305\uC73C\uB85C \uC804\uD658\uD588\uC2B5\uB2C8\uB2E4. \uC774\uC804 \uAE30\uB85D\uC740 \uC800\uC7A5\uB418\uC5B4 \uC788\uC2B5\uB2C8\uB2E4.", false);
+  }
   openMultiNoteModal() {
     new MultiNoteSummaryModal(this, this.vaultContext).open();
+  }
+  openChatHistoryModal() {
+    new ChatHistoryModal(this, this.vaultContext).open();
   }
   async summarizeFiles(files) {
     if (files.length === 0) {
@@ -883,6 +952,29 @@ var AssistantView = class extends import_obsidian2.ItemView {
     }
     const prompt = await this.vaultContext.buildMultiNoteSummaryPrompt(files);
     await this.sendPrompt(prompt, `${files.length}\uAC1C \uB178\uD2B8 \uC694\uC57D`);
+  }
+  async loadChat(file) {
+    const content = await this.vaultContext.readFile(file);
+    this.currentChatPath = file.path;
+    const entries = this.parseChatEntries(content);
+    this.chatMessageCount = entries.length;
+    this.messagesEl.empty();
+    for (const entry of entries) {
+      this.addMessage(entry.role, entry.text, false);
+    }
+    new import_obsidian2.Notice(`\uCC44\uD305\uC744 \uBD88\uB7EC\uC654\uC2B5\uB2C8\uB2E4: ${file.basename}`);
+  }
+  parseChatEntries(content) {
+    const entries = [];
+    const regex = /^### (나|Codex|시스템)(?: · .*?)?\n\n([\s\S]*?)(?=^### |\s*$)/gmu;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      entries.push({
+        role: match[1],
+        text: match[2].trim()
+      });
+    }
+    return entries;
   }
   handleCodexEvent(event) {
     if (event.type === "message") {
@@ -899,6 +991,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
       }
       this.lastAssistantText = text;
       this.addMessage("Codex", text);
+      this.persistMessage("Codex", text).catch(console.error);
       return;
     }
     if (event.type === "stderr") {
@@ -1065,7 +1158,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
   formatNumber(value) {
     return new Intl.NumberFormat().format(value);
   }
-  addMessage(role, text) {
+  addMessage(role, text, persist = true) {
     const message = this.messagesEl.createDiv({ cls: `pca-message pca-message-${this.roleClass(role)}` });
     message.createEl("strong", { cls: "pca-role", text: role });
     const body = message.createDiv({ cls: "pca-message-body" });
@@ -1075,6 +1168,9 @@ var AssistantView = class extends import_obsidian2.ItemView {
       body.setText(text);
     }
     this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
+    if (persist && role === "\uC2DC\uC2A4\uD15C") {
+      this.persistMessage(role, text).catch(console.error);
+    }
   }
   roleClass(role) {
     if (role === "\uB098") {
@@ -1161,10 +1257,43 @@ var MultiNoteSummaryModal = class extends import_obsidian2.Modal {
     }
   }
 };
+var ChatHistoryModal = class extends import_obsidian2.Modal {
+  constructor(assistantView, vaultContext) {
+    super(assistantView.app);
+    this.assistantView = assistantView;
+    this.vaultContext = vaultContext;
+  }
+  listEl;
+  query = "";
+  onOpen() {
+    this.titleEl.setText("\uCC44\uD305 \uBD88\uB7EC\uC624\uAE30");
+    this.contentEl.addClass("pca-note-modal");
+    const input = this.contentEl.createEl("input", {
+      cls: "pca-note-search",
+      placeholder: "\uCC44\uD305 \uC81C\uBAA9\uC73C\uB85C \uAC80\uC0C9"
+    });
+    input.oninput = () => {
+      this.query = input.value.toLowerCase();
+      this.renderList();
+    };
+    this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
+    this.renderList();
+  }
+  renderList() {
+    this.listEl.empty();
+    const files = this.vaultContext.getChatHistoryFiles().filter((file) => file.basename.toLowerCase().includes(this.query)).slice(0, 80);
+    for (const file of files) {
+      const row = this.listEl.createEl("button", { cls: "pca-chat-row", text: file.basename });
+      row.onclick = async () => {
+        this.close();
+        await this.assistantView.loadChat(file);
+      };
+    }
+  }
+};
 
 // src/main.ts
-var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
-  assistantSettings;
+var ObsidianCodexAssistantPlugin = class extends import_obsidian3.Plugin {
   codex;
   auth;
   vaultContext;
@@ -1172,7 +1301,7 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
   async onload() {
     await this.loadSettings();
     (0, import_obsidian3.addIcon)(
-      "personal-codex-assistant",
+      "obsidian-codex-assistant",
       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3.2" fill="currentColor" opacity="0.22"/>
         <path d="M4.2 14.2c3.3 3.4 10.4 4.4 14.8 1.9 1.7-1 2.2-2.2 1.5-3.1-.9-1.3-4.2-1.3-8.1-.1-4 1.2-7.2 1.1-8.5-.2-.9-.9-.8-2.1.4-3.1 3.2-2.8 10.5-2.6 15.2.4"/>
@@ -1182,20 +1311,17 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
         <path d="M8.6 13.1h6.8"/>
       </svg>`
     );
-    this.codex = new CodexClient(this.assistantSettings);
-    this.auth = new CodexAuth(this.assistantSettings.codexCommand);
-    this.vaultContext = new VaultContext(this.app, this.assistantSettings);
-    this.approvals = new ApprovalManager();
+    this.buildServices();
     this.registerView(
       ASSISTANT_VIEW_TYPE,
-      (leaf) => new AssistantView(leaf, this.codex, this.auth, this.vaultContext, this.approvals)
+      (leaf) => new AssistantView(leaf, this.codex, this.auth, this.vaultContext, this.approvals, this.settings)
     );
-    this.addRibbonIcon("personal-codex-assistant", "Codex Assistant \uC5F4\uAE30", () => {
+    this.addRibbonIcon("obsidian-codex-assistant", "Obsidian Codex Assistant \uC5F4\uAE30", () => {
       this.activateView();
     });
     this.addCommand({
-      id: "open-personal-codex-assistant",
-      name: "Open Personal Codex Assistant",
+      id: "open-obsidian-codex-assistant",
+      name: "Open Obsidian Codex Assistant",
       callback: () => this.activateView()
     });
     this.addCommand({
@@ -1206,6 +1332,7 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
         new import_obsidian3.Notice("Assistant \uD3F4\uB354\uC640 \uAE30\uBCF8 \uBB38\uB9E5 \uD30C\uC77C\uC744 \uB9CC\uB4E4\uC5C8\uC2B5\uB2C8\uB2E4.");
       }
     });
+    this.addSettingTab(new ObsidianCodexAssistantSettingTab(this.app, this));
     await this.vaultContext.ensureAssistantFiles();
   }
   onunload() {
@@ -1229,9 +1356,46 @@ var PersonalCodexAssistantPlugin = class extends import_obsidian3.Plugin {
     }
   }
   async loadSettings() {
-    this.assistantSettings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
   async saveSettings() {
-    await this.saveData(this.assistantSettings);
+    await this.saveData(this.settings);
+    this.buildServices();
+  }
+  buildServices() {
+    this.codex = new CodexClient(this.settings);
+    this.auth = new CodexAuth(this.settings.codexCommand);
+    this.vaultContext = new VaultContext(this.app, this.settings);
+    this.approvals = new ApprovalManager();
+  }
+};
+var ObsidianCodexAssistantSettingTab = class extends import_obsidian3.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "Obsidian Codex Assistant" });
+    new import_obsidian3.Setting(containerEl).setName("Chat history folder").setDesc("\uCC44\uD305 \uAE30\uB85D\uC744 \uC800\uC7A5\uD560 Vault \uB0B4\uBD80 \uD3F4\uB354\uC785\uB2C8\uB2E4.").addText(
+      (text) => text.setPlaceholder("Assistant/Chats").setValue(this.plugin.settings.chatHistoryFolder).onChange(async (value) => {
+        this.plugin.settings.chatHistoryFolder = value.trim() || DEFAULT_SETTINGS.chatHistoryFolder;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Max messages per chat").setDesc("\uC774 \uAC1C\uC218\uB97C \uB118\uC73C\uBA74 \uC0C8 \uCC44\uD305\uC73C\uB85C \uB118\uC5B4\uAC00\uB3C4\uB85D \uC548\uB0B4\uD569\uB2C8\uB2E4.").addText(
+      (text) => text.setPlaceholder("30").setValue(String(this.plugin.settings.maxChatMessages)).onChange(async (value) => {
+        const parsed = Number.parseInt(value, 10);
+        this.plugin.settings.maxChatMessages = Number.isFinite(parsed) && parsed > 4 ? parsed : DEFAULT_SETTINGS.maxChatMessages;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Codex command").setDesc("\uC77C\uBC18\uC801\uC73C\uB85C codex \uADF8\uB300\uB85C \uB450\uBA74 \uB429\uB2C8\uB2E4.").addText(
+      (text) => text.setPlaceholder("codex").setValue(this.plugin.settings.codexCommand).onChange(async (value) => {
+        this.plugin.settings.codexCommand = value.trim() || DEFAULT_SETTINGS.codexCommand;
+        await this.plugin.saveSettings();
+      })
+    );
   }
 };

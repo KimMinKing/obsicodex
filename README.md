@@ -1,6 +1,6 @@
-# Personal Codex Assistant
+# Obsidian Codex Assistant
 
-Personal Codex Assistant is an Obsidian desktop plugin that connects to the local Codex CLI app server and helps you review notes, daily logs, todos, and study records inside Obsidian.
+Obsidian Codex Assistant is an Obsidian desktop plugin that connects to the local Codex CLI app server and helps you review notes, daily logs, todos, and study records inside Obsidian.
 
 ## Features
 
@@ -9,9 +9,11 @@ Personal Codex Assistant is an Obsidian desktop plugin that connects to the loca
 - Current note context attachment
 - Selection rewrite suggestions
 - Daily review prompts for journals and todos
+- Multi-note summary picker
+- Chat history saved under `Assistant/Chats/`
+- Saved chat reload and continue
 - Assistant memory files under `Assistant/`
 - Daily review saving to `Assistant/Daily Review/YYYY-MM-DD.md`
-- Read-only first workflow: the plugin suggests changes instead of directly editing notes
 
 ## Requirements
 
@@ -64,11 +66,11 @@ npm run dev
 Copy `manifest.json`, `main.js`, and `styles.css` into:
 
 ```text
-<Vault>/.obsidian/plugins/personal-codex-assistant/
+<Vault>/.obsidian/plugins/obsidian-codex-assistant/
 ```
 
 Then enable the plugin from Obsidian's community plugin settings.
 
 ## Privacy and Security
 
-This plugin runs only on Obsidian desktop because it launches the local Codex CLI. It sends the active note or selected text to Codex only when you press a command or send a message. The first version does not directly modify notes.
+This plugin runs only on Obsidian desktop because it launches the local Codex CLI. It sends the active note or selected text to Codex only when you press a command or send a message.

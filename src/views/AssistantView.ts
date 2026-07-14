@@ -4,10 +4,16 @@ import { CodexClient } from "../codex/CodexClient";
 import { CodexEvent } from "../codex/CodexTypes";
 import { VaultContext } from "../context/VaultContext";
 import { ApprovalManager } from "../security/ApprovalManager";
+import { AssistantSettings } from "../settings/AssistantSettings";
 
-export const ASSISTANT_VIEW_TYPE = "personal-codex-assistant-view";
+export const ASSISTANT_VIEW_TYPE = "obsidian-codex-assistant-view";
 
 type MessageRole = "나" | "Codex" | "시스템";
+
+interface ChatEntry {
+  role: MessageRole;
+  text: string;
+}
 
 export class AssistantView extends ItemView {
   private messagesEl!: HTMLElement;
@@ -16,6 +22,8 @@ export class AssistantView extends ItemView {
   private tokenUsageEl: HTMLElement | null = null;
   private thinkingEl: HTMLElement | null = null;
   private actionListEl: HTMLElement | null = null;
+  private currentChatPath: string | null = null;
+  private chatMessageCount = 0;
   private lastAssistantText = "";
 
   constructor(
@@ -24,6 +32,7 @@ export class AssistantView extends ItemView {
     private readonly auth: CodexAuth,
     private readonly vaultContext: VaultContext,
     private readonly approvals: ApprovalManager,
+    private readonly settings: AssistantSettings,
   ) {
     super(leaf);
   }
@@ -33,13 +42,13 @@ export class AssistantView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Codex Assistant";
+    return "Obsidian Codex Assistant";
   }
 
   async onOpen(): Promise<void> {
     const container = this.containerEl.children[1];
     container.empty();
-    container.addClass("personal-codex-assistant");
+    container.addClass("obsidian-codex-assistant");
     this.rootEl = container as HTMLElement;
 
     await this.render();
@@ -48,7 +57,7 @@ export class AssistantView extends ItemView {
 
   private async render(): Promise<void> {
     this.rootEl.empty();
-    this.rootEl.addClass("personal-codex-assistant");
+    this.rootEl.addClass("obsidian-codex-assistant");
 
     const authStatus = await this.auth.checkStatus();
     if (!authStatus.available) {
@@ -70,7 +79,7 @@ export class AssistantView extends ItemView {
     mark.createDiv({ cls: "pca-orbit-core" });
 
     const titleWrap = header.createDiv({ cls: "pca-title-wrap" });
-    titleWrap.createEl("h2", { text: "Personal Codex Assistant" });
+    titleWrap.createEl("h2", { text: "Obsidian Codex Assistant" });
     titleWrap.createEl("p", { text: subtitle });
   }
 
@@ -99,11 +108,6 @@ export class AssistantView extends ItemView {
     this.createToolbarButton(toolbar, "공식 설치 문서 열기", () => {
       this.openExternalUrl("https://developers.openai.com/codex/cli");
     });
-
-    this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "Codex CLI 설치 대기 중",
-    });
   }
 
   private createInstallBlock(parent: HTMLElement, title: string, command: string): void {
@@ -131,11 +135,6 @@ export class AssistantView extends ItemView {
     const loginButton = toolbar.createEl("button", { text: "ChatGPT로 로그인" });
     loginButton.onclick = () => this.startLogin(loginButton);
     this.createToolbarButton(toolbar, "상태 다시 확인", () => this.render());
-
-    this.rootEl.createEl("div", {
-      cls: "pca-status",
-      text: "로그인 대기 중",
-    });
   }
 
   private renderChat(): void {
@@ -145,7 +144,7 @@ export class AssistantView extends ItemView {
     this.setTokenUsageText("토큰 사용량 대기 중");
 
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
-    this.addMessage("시스템", "Codex 연결 전입니다. 질문을 보내면 app-server 실행을 시도합니다.");
+    this.addMessage("시스템", "새 채팅입니다. 질문을 보내면 기록이 자동 저장됩니다.", false);
 
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
     this.inputEl = compose.createEl("textarea", {
@@ -167,6 +166,8 @@ export class AssistantView extends ItemView {
       this.actionListEl?.toggleClass("is-collapsed", !this.actionListEl.hasClass("is-collapsed"));
     };
 
+    this.createActionButton("새 채팅", () => this.startNewChat());
+    this.createActionButton("채팅 불러오기", () => this.openChatHistoryModal());
     this.createActionButton("로그인 상태", async () => {
       const status = await this.auth.checkStatus();
       this.addMessage("시스템", status.signedIn ? "Codex 로그인 상태입니다." : "Codex 로그인이 필요합니다.");
@@ -253,8 +254,14 @@ export class AssistantView extends ItemView {
       return;
     }
 
+    if (this.chatMessageCount >= this.settings.maxChatMessages) {
+      await this.rolloverChat();
+    }
+
     this.inputEl.value = "";
+    await this.ensureChatSession(trimmed);
     this.addMessage("나", trimmed);
+    await this.persistMessage("나", trimmed);
     this.showThinking();
 
     const prompt = await this.vaultContext.buildContextualPrompt(trimmed, selectionOnly, dailyReview);
@@ -273,7 +280,13 @@ export class AssistantView extends ItemView {
   }
 
   private async sendPrompt(prompt: string, label: string): Promise<void> {
+    if (this.chatMessageCount >= this.settings.maxChatMessages) {
+      await this.rolloverChat();
+    }
+
+    await this.ensureChatSession(label);
     this.addMessage("나", label);
+    await this.persistMessage("나", label);
     this.showThinking();
 
     try {
@@ -285,8 +298,44 @@ export class AssistantView extends ItemView {
     }
   }
 
+  private async ensureChatSession(firstMessage: string): Promise<void> {
+    if (!this.currentChatPath) {
+      this.currentChatPath = await this.vaultContext.createChatSession(firstMessage);
+      this.chatMessageCount = 0;
+      new Notice("새 채팅 기록을 만들었습니다.");
+    }
+  }
+
+  private async persistMessage(role: MessageRole, text: string): Promise<void> {
+    if (!this.currentChatPath) {
+      return;
+    }
+
+    await this.vaultContext.appendChatMessage(this.currentChatPath, role, text);
+    this.chatMessageCount += 1;
+  }
+
+  private async rolloverChat(): Promise<void> {
+    this.addMessage("시스템", "채팅이 길어져 새 채팅으로 넘어갑니다. 이전 기록은 저장되어 있습니다.", false);
+    this.currentChatPath = null;
+    this.chatMessageCount = 0;
+    this.codex.stop();
+  }
+
+  private startNewChat(): void {
+    this.currentChatPath = null;
+    this.chatMessageCount = 0;
+    this.codex.stop();
+    this.messagesEl.empty();
+    this.addMessage("시스템", "새 채팅으로 전환했습니다. 이전 기록은 저장되어 있습니다.", false);
+  }
+
   private openMultiNoteModal(): void {
     new MultiNoteSummaryModal(this, this.vaultContext).open();
+  }
+
+  private openChatHistoryModal(): void {
+    new ChatHistoryModal(this, this.vaultContext).open();
   }
 
   async summarizeFiles(files: TFile[]): Promise<void> {
@@ -297,6 +346,35 @@ export class AssistantView extends ItemView {
 
     const prompt = await this.vaultContext.buildMultiNoteSummaryPrompt(files);
     await this.sendPrompt(prompt, `${files.length}개 노트 요약`);
+  }
+
+  async loadChat(file: TFile): Promise<void> {
+    const content = await this.vaultContext.readFile(file);
+    this.currentChatPath = file.path;
+    const entries = this.parseChatEntries(content);
+    this.chatMessageCount = entries.length;
+    this.messagesEl.empty();
+
+    for (const entry of entries) {
+      this.addMessage(entry.role, entry.text, false);
+    }
+
+    new Notice(`채팅을 불러왔습니다: ${file.basename}`);
+  }
+
+  private parseChatEntries(content: string): ChatEntry[] {
+    const entries: ChatEntry[] = [];
+    const regex = /^### (나|Codex|시스템)(?: · .*?)?\n\n([\s\S]*?)(?=^### |\s*$)/gmu;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(content)) !== null) {
+      entries.push({
+        role: match[1] as MessageRole,
+        text: match[2].trim(),
+      });
+    }
+
+    return entries;
   }
 
   private handleCodexEvent(event: CodexEvent): void {
@@ -317,6 +395,7 @@ export class AssistantView extends ItemView {
 
       this.lastAssistantText = text;
       this.addMessage("Codex", text);
+      this.persistMessage("Codex", text).catch(console.error);
       return;
     }
 
@@ -525,7 +604,7 @@ export class AssistantView extends ItemView {
     return new Intl.NumberFormat().format(value);
   }
 
-  private addMessage(role: MessageRole, text: string): void {
+  private addMessage(role: MessageRole, text: string, persist = true): void {
     const message = this.messagesEl.createDiv({ cls: `pca-message pca-message-${this.roleClass(role)}` });
     message.createEl("strong", { cls: "pca-role", text: role });
     const body = message.createDiv({ cls: "pca-message-body" });
@@ -535,6 +614,10 @@ export class AssistantView extends ItemView {
       body.setText(text);
     }
     this.messagesEl.scrollTo({ top: this.messagesEl.scrollHeight });
+
+    if (persist && role === "시스템") {
+      this.persistMessage(role, text).catch(console.error);
+    }
   }
 
   private roleClass(role: MessageRole): string {
@@ -637,6 +720,51 @@ class MultiNoteSummaryModal extends Modal {
         }
       };
       row.createEl("span", { text: file.path });
+    }
+  }
+}
+
+class ChatHistoryModal extends Modal {
+  private listEl!: HTMLElement;
+  private query = "";
+
+  constructor(
+    private readonly assistantView: AssistantView,
+    private readonly vaultContext: VaultContext,
+  ) {
+    super(assistantView.app);
+  }
+
+  onOpen(): void {
+    this.titleEl.setText("채팅 불러오기");
+    this.contentEl.addClass("pca-note-modal");
+
+    const input = this.contentEl.createEl("input", {
+      cls: "pca-note-search",
+      placeholder: "채팅 제목으로 검색",
+    });
+    input.oninput = () => {
+      this.query = input.value.toLowerCase();
+      this.renderList();
+    };
+
+    this.listEl = this.contentEl.createDiv({ cls: "pca-note-list" });
+    this.renderList();
+  }
+
+  private renderList(): void {
+    this.listEl.empty();
+    const files = this.vaultContext
+      .getChatHistoryFiles()
+      .filter((file) => file.basename.toLowerCase().includes(this.query))
+      .slice(0, 80);
+
+    for (const file of files) {
+      const row = this.listEl.createEl("button", { cls: "pca-chat-row", text: file.basename });
+      row.onclick = async () => {
+        this.close();
+        await this.assistantView.loadChat(file);
+      };
     }
   }
 }

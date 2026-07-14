@@ -4,6 +4,8 @@ export interface AssistantSettings {
   assistantFolder: string;
   dailyFolder: string;
   dailyReviewFolder: string;
+  chatHistoryFolder: string;
+  maxChatMessages: number;
 }
 
 export const DEFAULT_SETTINGS: AssistantSettings = {
@@ -12,4 +14,6 @@ export const DEFAULT_SETTINGS: AssistantSettings = {
   assistantFolder: "Assistant",
   dailyFolder: "Daily",
   dailyReviewFolder: "Assistant/Daily Review",
+  chatHistoryFolder: "Assistant/Chats",
+  maxChatMessages: 30,
 };

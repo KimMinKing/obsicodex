@@ -38,6 +38,20 @@ export class VaultContext {
     return this.app.vault.getMarkdownFiles().sort((a, b) => a.path.localeCompare(b.path));
   }
 
+  getChatHistoryFiles(): TFile[] {
+    const folder = this.settings.chatHistoryFolder.replace(/\/+$/u, "");
+    const prefix = `${folder}/`;
+
+    return this.app.vault
+      .getMarkdownFiles()
+      .filter((file) => file.path.startsWith(prefix))
+      .sort((a, b) => b.stat.mtime - a.stat.mtime);
+  }
+
+  async readFile(file: TFile): Promise<string> {
+    return this.app.vault.read(file);
+  }
+
   getSelection(): string {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     return view?.editor.getSelection() ?? "";
@@ -46,6 +60,7 @@ export class VaultContext {
   async ensureAssistantFiles(): Promise<void> {
     await this.ensureFolder(this.settings.assistantFolder);
     await this.ensureFolder(this.settings.dailyReviewFolder);
+    await this.ensureFolder(this.settings.chatHistoryFolder);
 
     const files = [
       ["Profile.md", "# Profile\n\n- 이름:\n- 현재 집중하는 일:\n- 중요하게 여기는 것:\n"],
@@ -79,6 +94,41 @@ export class VaultContext {
         await this.app.vault.create(path, content);
       }
     }
+  }
+
+  async createChatSession(firstMessage: string): Promise<string> {
+    await this.ensureFolder(this.settings.chatHistoryFolder);
+
+    const timestamp = window.moment().format("YYYY-MM-DD HH-mm-ss");
+    const title = this.sanitizeFileName(firstMessage.split(/\r?\n/u)[0].trim()).slice(0, 48) || "New chat";
+    const path = `${this.settings.chatHistoryFolder}/${timestamp} ${title}.md`;
+    const markdown = [
+      `# ${title}`,
+      "",
+      `- Created: ${window.moment().format("YYYY-MM-DD HH:mm:ss")}`,
+      "",
+      "## Conversation",
+      "",
+    ].join("\n");
+
+    await this.app.vault.create(path, markdown);
+    return path;
+  }
+
+  async appendChatMessage(path: string, role: string, text: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      return;
+    }
+
+    const entry = [
+      `### ${role} · ${window.moment().format("HH:mm:ss")}`,
+      "",
+      text.trim() || "(empty)",
+      "",
+    ].join("\n");
+
+    await this.app.vault.append(file, entry);
   }
 
   async saveDailyReview(markdown: string): Promise<string> {
@@ -132,12 +182,7 @@ export class VaultContext {
 
     for (const file of files.slice(0, 12)) {
       const content = await this.app.vault.read(file);
-      noteBlocks.push([
-        `## ${file.path}`,
-        "```markdown",
-        this.truncate(content, 5000),
-        "```",
-      ].join("\n"));
+      noteBlocks.push([`## ${file.path}`, "```markdown", this.truncate(content, 5000), "```"].join("\n"));
     }
 
     return [
@@ -145,7 +190,6 @@ export class VaultContext {
       "",
       "사용자가 선택한 여러 노트를 함께 읽고 종합 요약해라.",
       "중복되는 내용은 합치고, 파일별 핵심과 전체 흐름을 구분해라.",
-      "답변은 다음 형식을 따른다.",
       "",
       "## 전체 요약",
       "## 파일별 핵심",
@@ -192,12 +236,7 @@ export class VaultContext {
       ].join("\n");
     }
 
-    return [
-      ...this.basePrompt(),
-      "",
-      "사용자 요청:",
-      userInput,
-    ].join("\n");
+    return [...this.basePrompt(), "", "사용자 요청:", userInput].join("\n");
   }
 
   private basePrompt(): string[] {
@@ -255,6 +294,10 @@ export class VaultContext {
     }
 
     return `${value.slice(0, maxLength)}\n\n...(일부 생략됨)`;
+  }
+
+  private sanitizeFileName(value: string): string {
+    return value.replace(/[\\/:*?"<>|#^[\]]/gu, " ").replace(/\s+/gu, " ").trim();
   }
 
   private async ensureFolder(path: string): Promise<void> {

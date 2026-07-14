@@ -88,8 +88,8 @@ export class CodexClient {
 
     this.send("initialize", {
       clientInfo: {
-        name: "personal_codex_assistant",
-        title: "Personal Codex Assistant",
+        name: "obsidian_codex_assistant",
+        title: "Obsidian Codex Assistant",
         version: "0.1.0",
       },
     });

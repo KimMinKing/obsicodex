@@ -1,7 +1,7 @@
 {
-  "name": "personal-codex-assistant",
-  "version": "0.1.5",
-  "description": "Codex-powered personal assistant for Obsidian",
+  "name": "obsidian-codex-assistant",
+  "version": "0.1.6",
+  "description": "Codex-powered assistant for Obsidian notes",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
