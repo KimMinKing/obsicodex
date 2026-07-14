@@ -1,0 +1,284 @@
+.personal-codex-assistant {
+  --pca-bg-0: #100b08;
+  --pca-bg-1: #24160d;
+  --pca-surface: rgba(39, 26, 18, 0.84);
+  --pca-surface-strong: rgba(58, 38, 25, 0.92);
+  --pca-line: rgba(244, 190, 136, 0.24);
+  --pca-text: #fff4e6;
+  --pca-muted: #d8bda0;
+  --pca-cyan: #7dd3c7;
+  --pca-blue: #f7c56b;
+  --pca-rose: #e58b4a;
+  --pca-green: #b7d889;
+
+  background:
+    radial-gradient(circle at 18% 12%, rgba(229, 139, 74, 0.22), transparent 27%),
+    radial-gradient(circle at 88% 20%, rgba(247, 197, 107, 0.16), transparent 30%),
+    linear-gradient(12deg, transparent 0 12%, rgba(247, 197, 107, 0.08) 12% 18%, transparent 18% 31%, rgba(229, 139, 74, 0.1) 31% 38%, transparent 38% 100%),
+    linear-gradient(180deg, var(--pca-bg-1), var(--pca-bg-0) 54%, #0b0705);
+  color: var(--pca-text);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: hidden;
+  padding: 14px;
+  position: relative;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.personal-codex-assistant::before {
+  background-image:
+    radial-gradient(circle, rgba(255, 244, 230, 0.75) 0 1px, transparent 1.5px),
+    radial-gradient(circle, rgba(125, 211, 199, 0.52) 0 1px, transparent 1.5px);
+  background-position: 0 0, 32px 48px;
+  background-size: 96px 96px, 132px 132px;
+  content: "";
+  inset: 0;
+  opacity: 0.22;
+  pointer-events: none;
+  position: absolute;
+}
+
+.personal-codex-assistant * {
+  box-sizing: border-box;
+  position: relative;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pca-header {
+  align-items: center;
+  border: 1px solid rgba(247, 197, 107, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(12deg, transparent 0 24%, rgba(247, 197, 107, 0.08) 24% 32%, transparent 32% 100%),
+    linear-gradient(135deg, rgba(42, 25, 14, 0.88), rgba(74, 45, 25, 0.68));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+.pca-orbit-mark {
+  border: 1px solid rgba(247, 197, 107, 0.58);
+  border-radius: 50%;
+  box-shadow: 0 0 24px rgba(247, 197, 107, 0.24);
+  flex: 0 0 42px;
+  height: 42px;
+  position: relative;
+}
+
+.pca-orbit-mark::before,
+.pca-orbit-mark::after {
+  border: 1px solid rgba(229, 139, 74, 0.5);
+  border-radius: 50%;
+  content: "";
+  inset: 8px -7px;
+  position: absolute;
+  transform: rotate(-24deg);
+}
+
+.pca-orbit-mark::after {
+  border-color: rgba(125, 211, 199, 0.34);
+  inset: 12px -4px;
+  transform: rotate(24deg);
+}
+
+.pca-orbit-core {
+  background: linear-gradient(135deg, var(--pca-blue), var(--pca-rose));
+  border-radius: 50%;
+  box-shadow: 0 0 18px rgba(247, 197, 107, 0.68);
+  height: 10px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+}
+
+.pca-title-wrap h2 {
+  color: var(--pca-text);
+  font-size: 16px;
+  font-weight: 680;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.pca-title-wrap p {
+  color: var(--pca-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.pca-toolbar,
+.pca-compose,
+.pca-context-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pca-toolbar {
+  flex-wrap: wrap;
+}
+
+.pca-toolbar button,
+.pca-compose button {
+  background: rgba(42, 25, 14, 0.72);
+  border: 1px solid rgba(247, 197, 107, 0.28);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--pca-text);
+  font-size: 12px;
+  min-height: 30px;
+  padding: 5px 10px;
+}
+
+.pca-toolbar button:hover,
+.pca-compose button:hover {
+  background: rgba(69, 42, 24, 0.92);
+  border-color: rgba(247, 197, 107, 0.62);
+  box-shadow: 0 0 18px rgba(247, 197, 107, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.pca-toolbar button:disabled {
+  color: rgba(238, 243, 255, 0.45);
+  opacity: 0.66;
+}
+
+.pca-context-row {
+  background: rgba(247, 197, 107, 0.08);
+  border: 1px solid rgba(247, 197, 107, 0.18);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.pca-messages {
+  backdrop-filter: blur(14px);
+  background: rgba(16, 11, 8, 0.64);
+  border: 1px solid var(--pca-line);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  flex: 1;
+  min-height: 180px;
+  overflow: auto;
+  padding: 10px;
+}
+
+.pca-auth-panel {
+  flex: 0 0 auto;
+}
+
+.pca-message {
+  background: var(--pca-surface);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  margin-bottom: 10px;
+  padding: 10px;
+  user-select: text;
+  -webkit-user-select: text;
+  white-space: pre-wrap;
+}
+
+.pca-message:last-child {
+  margin-bottom: 0;
+}
+
+.pca-message-user {
+  background: linear-gradient(135deg, rgba(247, 197, 107, 0.17), rgba(125, 211, 199, 0.09));
+  border-color: rgba(247, 197, 107, 0.3);
+}
+
+.pca-message-assistant {
+  background:
+    linear-gradient(10deg, transparent 0 28%, rgba(247, 197, 107, 0.06) 28% 35%, transparent 35% 100%),
+    linear-gradient(135deg, rgba(58, 38, 25, 0.88), rgba(31, 22, 17, 0.78));
+  border-color: rgba(229, 139, 74, 0.3);
+}
+
+.pca-message-system {
+  background: rgba(15, 23, 42, 0.58);
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.pca-role {
+  color: var(--pca-cyan);
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  margin-bottom: 5px;
+}
+
+.pca-message-assistant .pca-role {
+  color: var(--pca-rose);
+}
+
+.pca-message-system .pca-role {
+  color: var(--pca-green);
+}
+
+.pca-message-body {
+  color: var(--pca-text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.pca-messages,
+.pca-messages * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.pca-compose {
+  align-items: flex-end;
+  background: rgba(42, 25, 14, 0.74);
+  border: 1px solid rgba(247, 197, 107, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.pca-compose textarea {
+  background: rgba(11, 7, 5, 0.55);
+  border: 1px solid rgba(244, 190, 136, 0.22);
+  border-radius: 8px;
+  color: var(--pca-text);
+  flex: 1;
+  line-height: 1.45;
+  min-height: 72px;
+  outline: none;
+  resize: vertical;
+}
+
+.pca-compose textarea:focus {
+  border-color: rgba(247, 197, 107, 0.66);
+  box-shadow: 0 0 0 2px rgba(247, 197, 107, 0.13);
+}
+
+.pca-compose textarea::placeholder {
+  color: rgba(170, 182, 211, 0.72);
+}
+
+.pca-compose button {
+  align-self: stretch;
+  min-width: 52px;
+}
+
+.pca-status {
+  color: var(--pca-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pca-messages pre {
+  background: rgba(11, 7, 5, 0.74);
+  border: 1px solid rgba(244, 190, 136, 0.18);
+  border-radius: 8px;
+  color: var(--pca-muted);
+  margin: 8px 0 0;
+  overflow: auto;
+  padding: 8px;
+}
