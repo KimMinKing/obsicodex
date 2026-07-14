@@ -155,6 +155,30 @@
   padding: 8px 10px;
 }
 
+.pca-token-usage {
+  align-items: center;
+  background: rgba(125, 211, 199, 0.08);
+  border: 1px solid rgba(125, 211, 199, 0.18);
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  min-height: 30px;
+  padding: 7px 10px;
+}
+
+.pca-token-label {
+  color: var(--pca-cyan);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pca-token-value {
+  color: var(--pca-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .pca-messages {
   backdrop-filter: blur(14px);
   background: rgba(16, 11, 8, 0.64);

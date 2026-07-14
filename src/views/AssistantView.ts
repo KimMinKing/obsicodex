@@ -13,6 +13,7 @@ export class AssistantView extends ItemView {
   private messagesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private statusEl!: HTMLElement;
+  private tokenUsageEl: HTMLElement | null = null;
   private rootEl!: HTMLElement;
   private lastAssistantText = "";
 
@@ -163,6 +164,10 @@ export class AssistantView extends ItemView {
       text: this.approvals.explainReadOnlyMode(),
     });
 
+    this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "토큰" });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text: "사용량 대기 중" });
+
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("시스템", "Codex 연결 전입니다. 질문을 보내면 app-server 실행을 시도합니다.");
 
@@ -248,6 +253,8 @@ export class AssistantView extends ItemView {
 
   private handleCodexEvent(event: CodexEvent): void {
     if (event.type === "message") {
+      this.updateTokenUsage(event.payload);
+
       if (!this.shouldShowProtocolMessage(event.payload)) {
         return;
       }
@@ -422,6 +429,57 @@ export class AssistantView extends ItemView {
     }
 
     return /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+  }
+
+  private updateTokenUsage(payload: unknown): void {
+    if (!this.tokenUsageEl || !payload || typeof payload !== "object") {
+      return;
+    }
+
+    const record = payload as Record<string, unknown>;
+    if (record.method !== "thread/tokenUsage/updated") {
+      return;
+    }
+
+    const params = record.params;
+    if (!params || typeof params !== "object") {
+      return;
+    }
+
+    const tokenUsage = (params as Record<string, unknown>).tokenUsage;
+    if (!tokenUsage || typeof tokenUsage !== "object") {
+      return;
+    }
+
+    const usageRecord = tokenUsage as Record<string, unknown>;
+    const total = this.readTokenBreakdown(usageRecord.total);
+    const last = this.readTokenBreakdown(usageRecord.last);
+    const contextWindow = typeof usageRecord.modelContextWindow === "number" ? usageRecord.modelContextWindow : null;
+    const remaining = contextWindow !== null ? Math.max(contextWindow - total.totalTokens, 0) : null;
+
+    this.tokenUsageEl.empty();
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "토큰" });
+    this.tokenUsageEl.createEl("span", {
+      cls: "pca-token-value",
+      text: [
+        `총 ${this.formatNumber(total.totalTokens)}`,
+        `이번 ${this.formatNumber(last.totalTokens)}`,
+        remaining === null ? "남은 컨텍스트 알 수 없음" : `남은 컨텍스트 ${this.formatNumber(remaining)}`,
+      ].join(" · "),
+    });
+  }
+
+  private readTokenBreakdown(value: unknown): { totalTokens: number } {
+    if (!value || typeof value !== "object") {
+      return { totalTokens: 0 };
+    }
+
+    const totalTokens = (value as Record<string, unknown>).totalTokens;
+    return { totalTokens: typeof totalTokens === "number" ? totalTokens : 0 };
+  }
+
+  private formatNumber(value: number): string {
+    return new Intl.NumberFormat().format(value);
   }
 
   private addMessage(role: MessageRole, text: string): void {

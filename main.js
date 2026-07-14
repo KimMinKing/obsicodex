@@ -635,6 +635,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
   messagesEl;
   inputEl;
   statusEl;
+  tokenUsageEl = null;
   rootEl;
   lastAssistantText = "";
   getViewType() {
@@ -747,6 +748,9 @@ var AssistantView = class extends import_obsidian2.ItemView {
       cls: "pca-status",
       text: this.approvals.explainReadOnlyMode()
     });
+    this.tokenUsageEl = this.rootEl.createDiv({ cls: "pca-token-usage" });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "\uD1A0\uD070" });
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-value", text: "\uC0AC\uC6A9\uB7C9 \uB300\uAE30 \uC911" });
     this.messagesEl = this.rootEl.createDiv({ cls: "pca-messages" });
     this.addMessage("\uC2DC\uC2A4\uD15C", "Codex \uC5F0\uACB0 \uC804\uC785\uB2C8\uB2E4. \uC9C8\uBB38\uC744 \uBCF4\uB0B4\uBA74 app-server \uC2E4\uD589\uC744 \uC2DC\uB3C4\uD569\uB2C8\uB2E4.");
     const compose = this.rootEl.createDiv({ cls: "pca-compose" });
@@ -816,6 +820,7 @@ var AssistantView = class extends import_obsidian2.ItemView {
   }
   handleCodexEvent(event) {
     if (event.type === "message") {
+      this.updateTokenUsage(event.payload);
       if (!this.shouldShowProtocolMessage(event.payload)) {
         return;
       }
@@ -955,6 +960,48 @@ var AssistantView = class extends import_obsidian2.ItemView {
       return false;
     }
     return /access token could not be refreshed|unauthorized|token_expired|authentication token is expired/i.test(JSON.stringify(payload));
+  }
+  updateTokenUsage(payload) {
+    if (!this.tokenUsageEl || !payload || typeof payload !== "object") {
+      return;
+    }
+    const record = payload;
+    if (record.method !== "thread/tokenUsage/updated") {
+      return;
+    }
+    const params = record.params;
+    if (!params || typeof params !== "object") {
+      return;
+    }
+    const tokenUsage = params.tokenUsage;
+    if (!tokenUsage || typeof tokenUsage !== "object") {
+      return;
+    }
+    const usageRecord = tokenUsage;
+    const total = this.readTokenBreakdown(usageRecord.total);
+    const last = this.readTokenBreakdown(usageRecord.last);
+    const contextWindow = typeof usageRecord.modelContextWindow === "number" ? usageRecord.modelContextWindow : null;
+    const remaining = contextWindow !== null ? Math.max(contextWindow - total.totalTokens, 0) : null;
+    this.tokenUsageEl.empty();
+    this.tokenUsageEl.createEl("span", { cls: "pca-token-label", text: "\uD1A0\uD070" });
+    this.tokenUsageEl.createEl("span", {
+      cls: "pca-token-value",
+      text: [
+        `\uCD1D ${this.formatNumber(total.totalTokens)}`,
+        `\uC774\uBC88 ${this.formatNumber(last.totalTokens)}`,
+        remaining === null ? "\uB0A8\uC740 \uCEE8\uD14D\uC2A4\uD2B8 \uC54C \uC218 \uC5C6\uC74C" : `\uB0A8\uC740 \uCEE8\uD14D\uC2A4\uD2B8 ${this.formatNumber(remaining)}`
+      ].join(" \xB7 ")
+    });
+  }
+  readTokenBreakdown(value) {
+    if (!value || typeof value !== "object") {
+      return { totalTokens: 0 };
+    }
+    const totalTokens = value.totalTokens;
+    return { totalTokens: typeof totalTokens === "number" ? totalTokens : 0 };
+  }
+  formatNumber(value) {
+    return new Intl.NumberFormat().format(value);
   }
   addMessage(role, text) {
     const message = this.messagesEl.createDiv({ cls: `pca-message pca-message-${this.roleClass(role)}` });
